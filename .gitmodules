@@ -1,0 +1,3 @@
+[submodule "src/BitVLA"]
+	path = src/BitVLA
+	url = https://github.com/ustcwhy/BitVLA.git
