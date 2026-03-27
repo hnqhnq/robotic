@@ -1,3 +1,7 @@
 [submodule "src/BitVLA"]
 	path = src/BitVLA
 	url = https://github.com/ustcwhy/BitVLA.git
+
+[submodule "src/LanguagePolicies"]
+	path = src/LanguagePolicies
+	url = https://github.com/LifeLong-Robot-Learning/LanguagePolicies.git
