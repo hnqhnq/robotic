@@ -7,6 +7,10 @@ src/GDrive/
 *.index
 *.bin
 
+# directories to exclude from git
+src/checkpoints/
+src/data/
+
 # python / misc
 __pycache__/
 *.pyc
