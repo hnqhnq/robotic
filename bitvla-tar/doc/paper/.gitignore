@@ -1,0 +1,26 @@
+# LaTeX 编译产物
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+*.bcf
+*.run.xml
+*.xdv
+*.dvi
+*.nav
+*.snm
+*.vrb
+
+# 本地 PDF（若需版本管理 main.pdf，可删除此行）
+# *.pdf
+
+# 编辑器
+*.swp
+*~

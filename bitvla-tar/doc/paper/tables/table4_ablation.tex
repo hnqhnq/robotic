@@ -1,0 +1,16 @@
+\begin{table}[t]
+\centering
+\caption{Ablation study: effect of $\lambda_{\text{TAR}}$ on LIBERO-10. All smoothness metrics and success rate improve monotonically with $\lambda$. Best in \textbf{bold}.}
+\label{tab:ablation}
+\small
+\begin{tabular}{lccccc}
+\toprule
+$\boldsymbol{\lambda_{\text{TAR}}}$ & \textbf{Success (\%)} & \textbf{S1} & \textbf{MaxJump} & \textbf{IB} & \textbf{GripperSw} \\
+\midrule
+0.00 & 86.4 & 0.0154 & 0.1613 & 0.0477 & 0.572 \\
+0.01 & 89.0 & 0.0111 & 0.0844 & \textbf{0.0421} & 0.497 \\
+0.05 & 90.8 & 0.0104 & 0.0794 & 0.0451 & 0.439 \\
+0.10 & \textbf{93.6} & \textbf{0.0099} & \textbf{0.0761} & 0.0460 & \textbf{0.435} \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,10 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented TAR (Temporal Action Regularization), a simple training-time regularization for VLA models that use action chunking. By penalizing large velocities at the boundary steps of each predicted chunk, TAR encourages smooth inter-chunk transitions without modifying the model architecture or inference pipeline.
+
+Applied to BitVLA on LIBERO-10, TAR raises the task success rate from 86.4\% to 93.6\% (+7.2\,pp at $\lambda_{\text{TAR}}=0.10$) while reducing intra-chunk velocity variation by 36\%, peak jumps by 53\%, and gripper noise by 24\%. A 4-point ablation study confirms that both success rate and smoothness improve monotonically with $\lambda$ over the tested range. Analysis reveals that TAR operates through two mechanisms: direct trajectory smoothing and implicit generalization regularization.
+
+TAR is immediately applicable to any VLA training pipeline that predicts action chunks, requiring only ${\sim}5$ lines of code with negligible computational overhead. We believe it constitutes a useful and practical tool for the robot learning community.
+
+\textbf{Future work.} Several directions remain open. First, validating TAR on the full LIBERO suite (Spatial, Object, Long) and on real-robot platforms will establish whether the simulated smoothness gains translate to physical execution. Second, extending the evaluation to other VLA backbones---including OpenVLA-OFT~\cite{kim2025openvlaoft}, $\pi_0$~\cite{black2024pi0}, and SmolVLA~\cite{shukor2025smolvla}---will determine whether the success-rate and smoothness improvements are architecture-agnostic. Third, an adaptive $\lambda$ schedule (e.g., linearly increasing $\lambda$ during training) may offer better control over the bias-variance trade-off and reduce sensitivity to the hyperparameter choice. Finally, a version of TAR that directly penalizes the inter-chunk boundary jump---by presenting adjacent chunks as pairs during training---would provide a stronger smoothness guarantee at the cost of a more complex data pipeline, and represents a natural extension of the current work.

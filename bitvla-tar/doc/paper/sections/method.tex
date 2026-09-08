@@ -1,0 +1,82 @@
+\section{Method}
+\label{sec:method}
+
+\subsection{Preliminaries: Action Chunking in VLA Models}
+Given an observation $o_t$ (an RGB image with proprioceptive state) and a language instruction $\ell$, a VLA model predicts a chunk of $T$ consecutive future actions:
+\begin{equation}
+    \hat{a}_{t:t+T} \in \mathbb{R}^{T \times D}, \quad \hat{a}_{t:t+T} = f_\theta(o_t, \ell),
+    \label{eq:chunk}
+\end{equation}
+where $D$ is the action dimensionality ($D{=}7$ in our setting: 6-DoF end-effector delta plus a binary gripper command). Training minimizes the mean absolute error between predicted and ground-truth actions:
+\begin{equation}
+    \mathcal{L}_{\text{L1}} = \frac{1}{TD} \sum_{t=0}^{T-1} \sum_{d=1}^{D} \left| \hat{a}_{t,d} - a_{t,d} \right|.
+    \label{eq:l1}
+\end{equation}
+At execution time the model is re-queried once every $T$ steps, and consecutive chunks are concatenated into the full trajectory. Because each chunk is predicted from a single observation without knowledge of the adjacent chunk, $\mathcal{L}_{\text{L1}}$ imposes no constraint on boundary-step velocities (steps 0 and $T{-}1$), leaving inter-chunk continuity to chance.
+
+\subsection{Analysis: Boundary Discontinuities}
+We quantify the discontinuity using two metrics computed over evaluation trajectories:
+
+\textbf{S1 (intra-chunk variation):} mean absolute step-to-step velocity within a chunk,
+\begin{equation}
+    \text{S1} = \frac{1}{(T-1)D} \sum_{t=1}^{T-1} \sum_{d=1}^{D} \left| \hat{a}_{t,d} - \hat{a}_{t-1,d} \right|.
+    \label{eq:s1}
+\end{equation}
+
+\textbf{IB (inter-chunk boundary jump):} mean absolute velocity at each chunk transition,
+\begin{equation}
+    \text{IB} = \frac{1}{D} \sum_{d=1}^{D} \left| \hat{a}^{(k+1)}_{0,d} - \hat{a}^{(k)}_{T-1,d} \right|.
+    \label{eq:ib}
+\end{equation}
+
+Table~\ref{tab:baseline_smoothness} reports these metrics for a strong BitVLA baseline. IB (0.0477) is 3.1$\times$ larger than S1 (0.0154) and MaxJump reaches 0.1613---over 10$\times$ S1---confirming that chunk transitions, not intra-chunk dynamics, are the dominant source of trajectory roughness.
+
+\input{tables/table1_baseline_smoothness}
+
+Why does L1 training fail to bound IB? Consider two consecutive ground-truth chunks $a^{(k)}$ and $a^{(k+1)}$ extracted from the same demonstration. Training presents each chunk as an independent sample: the model sees $(o_t, \ell)$ and is asked to predict $a^{(k)}$, and later sees $(o_{t+T}, \ell)$ and is asked to predict $a^{(k+1)}$. No gradient signal couples $\hat{a}^{(k)}_{T-1}$ to $\hat{a}^{(k+1)}_{0}$ during training. Minimizing $\mathcal{L}_{\text{L1}}$ independently for each chunk drives $\hat{a}^{(k)}_{T-1,d} \rightarrow a^{(k)}_{T-1,d}$ and $\hat{a}^{(k+1)}_{0,d} \rightarrow a^{(k+1)}_{0,d}$, but the boundary gap $|a^{(k+1)}_{0,d} - a^{(k)}_{T-1,d}|$ is determined entirely by the data distribution---it can be arbitrarily large. In practice, short horizons and camera-egocentric observations mean the robot arm often moves quickly at the start or end of a demonstration segment, making large boundary jumps the statistical norm rather than the exception.
+
+\subsection{Temporal Action Regularization}
+The gap between IB and S1 arises because $\mathcal{L}_{\text{L1}}$ treats all $T$ steps of a chunk uniformly: no extra pressure is placed on the boundary steps to produce low velocity. TAR closes this gap by adding a boundary-velocity penalty to the training objective.
+
+For a batch of $B$ predicted chunks, we penalize the first-step and last-step velocities:
+\begin{equation}
+    \mathcal{L}_{\text{TAR}} = \frac{1}{BD} \sum_{b=1}^{B} \sum_{d=1}^{D} \Big( \underbrace{|\hat{a}_{b,1,d} - \hat{a}_{b,0,d}|}_{\text{start velocity}} + \underbrace{|\hat{a}_{b,T-1,d} - \hat{a}_{b,T-2,d}|}_{\text{end velocity}} \Big).
+    \label{eq:tar}
+\end{equation}
+The combined objective is:
+\begin{equation}
+    \mathcal{L} = \mathcal{L}_{\text{L1}} + \lambda_{\text{TAR}} \cdot \mathcal{L}_{\text{TAR}},
+    \label{eq:total}
+\end{equation}
+where $\lambda_{\text{TAR}} \geq 0$ is the regularization coefficient; $\lambda_{\text{TAR}}=0$ recovers standard L1 training.
+
+\textbf{Intuition.} If every chunk is trained to start and end with near-zero velocity, the final action of chunk~$k$ will be close to the first action of chunk~$k{+}1$ by construction, because both are ``slow'' steps. This is the same principle that underlies velocity-boundary constraints in classical trajectory planning~\cite{flash1985coordination}, but realized implicitly through the loss rather than through explicit trajectory optimization.
+
+\textbf{Implementation and cost.} Algorithm~\ref{alg:tar} shows the complete modification to the training loop. It requires only two additional tensor operations (one subtraction and one mean) per gradient step---negligible overhead relative to the model forward pass---and leaves inference unchanged.
+
+\begin{algorithm}[t]
+\caption{TAR training loss computation}
+\label{alg:tar}
+\begin{algorithmic}[1]
+\Require Predicted chunk $\hat{a} \in \mathbb{R}^{B \times T \times D}$, ground-truth $a$, coefficient $\lambda_{\text{TAR}}$
+\State $\mathcal{L}_{\text{L1}} \leftarrow \mathrm{mean}(|\hat{a} - a|)$
+\State $v_{\text{start}} \leftarrow \hat{a}_{:,1,:} - \hat{a}_{:,0,:}$ \Comment{shape $B \times D$}
+\State $v_{\text{end}} \leftarrow \hat{a}_{:,T-1,:} - \hat{a}_{:,T-2,:}$
+\State $\mathcal{L}_{\text{TAR}} \leftarrow \mathrm{mean}(|v_{\text{start}}| + |v_{\text{end}}|)$
+\State \Return $\mathcal{L}_{\text{L1}} + \lambda_{\text{TAR}} \cdot \mathcal{L}_{\text{TAR}}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Design Considerations}
+\textbf{Why penalize only boundary steps?} An alternative would be to penalize velocity uniformly across all $T$ steps, effectively adding an $\ell_1$ total-variation term to the loss. However, uniform smoothing conflicts with the nature of manipulation: mid-chunk steps may legitimately require fast motions (e.g., rapid approach or release), and penalizing them would reduce the expressiveness of the predicted trajectory. Boundary steps 0 and $T{-}1$, by contrast, serve a structural role---they are the join points between independently predicted chunks---and there is no manipulation-semantic reason for them to be fast. Focusing the penalty on these two steps decouples the smoothness objective from the task-execution objective, letting the model remain agile in the interior while becoming smooth at the seams.
+
+\textbf{Why not penalize the inter-chunk boundary directly?} The most direct fix would be to supervise the jump $|\hat{a}^{(k+1)}_{0} - \hat{a}^{(k)}_{T-1}|$ directly. However, this requires that consecutive chunks from the same demonstration appear together in the same training batch, a non-trivial data loader change that substantially increases complexity (pairs must be formed, batch independence is broken, and memory requirements double). TAR avoids this by decomposing the inter-chunk smoothness objective into two independent single-chunk objectives: instead of requiring $\hat{a}^{(k+1)}_{0} \approx \hat{a}^{(k)}_{T-1}$, it requires $|v_{\text{start}}| \approx 0$ and $|v_{\text{end}}| \approx 0$. Each condition can be enforced from a single chunk independently, preserving batch independence and requiring no change to the data pipeline.
+
+\textbf{L1 vs.\ L2 boundary penalty.} We adopt an $\ell_1$ penalty (absolute value) on boundary velocity, consistent with the $\ell_1$ main regression loss. The $\ell_1$ norm is less sensitive to outlier steps with large velocity---it encourages the mean boundary velocity towards zero without catastrophically suppressing the few steps where the ground-truth trajectory legitimately starts or ends fast. An $\ell_2$ variant would place quadratically larger pressure on fast boundary steps and may over-constrain trajectories for tasks requiring quick gripper events near chunk boundaries.
+
+\subsection{Connection to Implicit Regularization}
+TAR functions not merely as a smoothing operator but as an implicit regularizer of the action policy. To see why, observe that the TAR term adds a constraint on the shape of the predicted chunk: boundary steps must be slow, interior steps are free. This constraint reduces the effective dimension of the hypothesis space that the model can exploit to minimize the training loss, analogous to how weight decay constrains the norm of the parameters.
+
+This perspective explains the training-loss / evaluation-performance inversion observed in our experiments: the model trained with $\lambda_{\text{TAR}}=0.10$ achieves the highest training loss (${\sim}0.085$) yet the best success rate (93.6\%). Under pure L1 training, the model can freely memorize fast boundary steps from the training demonstrations; these fast steps are not present at the same frequency at test time, leading to covariate shift at chunk boundaries. TAR prevents this overfitting by forcing the model to learn trajectories that are smooth at every boundary, regardless of the training data.
+
+Formally, let $\mathcal{H}_\tau$ denote the set of action chunk predictors whose boundary-step velocities satisfy $|v_{\text{start}}| + |v_{\text{end}}| \leq \tau$. TAR with coefficient $\lambda_{\text{TAR}}$ implicitly biases optimization towards predictors in $\mathcal{H}_\tau$ for $\tau \propto 1/\lambda_{\text{TAR}}$. As $\lambda_{\text{TAR}}$ increases, $\mathcal{H}_\tau$ shrinks, providing stronger regularization. The monotonically increasing success rate observed across $\lambda_{\text{TAR}} \in \{0, 0.01, 0.05, 0.10\}$ (Table~\ref{tab:ablation}) suggests that, within the tested range, the bias-variance trade-off favors stronger boundary regularization---the reduction in overfitting outweighs any loss in fitting capacity.

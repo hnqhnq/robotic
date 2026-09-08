@@ -10,6 +10,11 @@ src/GDrive/
 # directories to exclude from git
 src/checkpoints/
 src/data/
+bitvla-tar/data/
+bitvla-tar/checkpoints/
+bitvla-tar/runs/
+bitvla-tar/logs/
+bitvla-tar/wandb/
 
 # python / misc
 __pycache__/

@@ -1,0 +1,84 @@
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Experimental Setup}
+\textbf{Model.} We use BitVLA~\cite{wang2025bitvla}, a 1.58-bit quantized VLA model with a 3\,B-parameter LLM backbone, BIT-SigLIP visual encoder, and a parallel action head following OpenVLA-OFT~\cite{kim2025openvlaoft}. The model uses action chunks of length $T=8$ and action dimensionality $D=7$ (6-DoF end-effector delta + binary gripper). Total GPU memory at inference is 1.4\,GB.
+
+\textbf{Benchmark.} We evaluate on LIBERO-10~\cite{liu2023libero}, a suite of 10 long-horizon tabletop manipulation tasks (e.g., multi-object placement, drawer manipulation, microwave operation). Each task is evaluated over 50 trials with fixed initial states, yielding 500 episodes per model. Success requires completing the full task within a fixed step budget.
+
+\textbf{Training details.} We fine-tune BitVLA from its pre-trained checkpoint using FSDP distributed training on 4$\times$NVIDIA GeForce RTX 4090D (24\,GB). Training runs for 10,001 steps with an effective batch size of 64 (per-GPU batch $=2$, gradient accumulation $=8$), learning rate $4 \times 10^{-4}$ (ViT: $8 \times 10^{-5}$), and image augmentation enabled. Gradient checkpointing is used for memory efficiency. Training takes approximately 40\,h.
+
+\textbf{Implementation of TAR.} TAR is integrated into the training loop as a single additional loss term applied to the continuous action head output, requiring no changes to the model architecture, data pipeline, or inference code. Concretely, after computing the standard L1 loss over the predicted action chunk $\hat{a} \in \mathbb{R}^{B \times T \times D}$, two tensor operations are appended: one subtraction to extract boundary-step velocities and one mean to aggregate them into $\mathcal{L}_{\text{TAR}}$ (Algorithm~\ref{alg:tar}). The total wall-clock overhead per training step is less than 0.1\,ms on a single RTX 4090D, negligible relative to the ${\sim}400$\,ms model forward-backward pass. The only new hyperparameter introduced is $\lambda_{\text{TAR}}$; all other training hyperparameters remain identical to the baseline.
+
+\textbf{Baseline.} The baseline is BitVLA trained with $\lambda_{\text{TAR}}=0$ (standard L1 loss only). It achieves 86.4\% success rate on LIBERO-10 and serves as our reference point for all comparisons.
+
+\textbf{Smoothness metrics.} Beyond task success rate, we report the following metrics computed from action trajectories collected during evaluation:
+\begin{itemize}
+    \item \textbf{S1:} mean intra-chunk step-to-step absolute variation (Section~\ref{sec:method})
+    \item \textbf{S2:} mean second-order variation within chunks
+    \item \textbf{MaxJump:} mean peak absolute velocity within chunks
+    \item \textbf{InterBoundary (IB):} mean inter-chunk boundary jump (Section~\ref{sec:method})
+    \item \textbf{GripperSwitches:} mean gripper open/close transitions per chunk
+\end{itemize}
+Lower values are better for all metrics.
+
+\subsection{Main Results}
+Table~\ref{tab:main_results} compares BitVLA trained with and without TAR ($\lambda_{\text{TAR}}=0.10$, the best-performing setting) on LIBERO-10.
+
+\input{tables/table2_main_results}
+
+TAR improves task success rate by 7.2 percentage points and reduces all smoothness metrics. Notably, MaxJump drops by 52.8\%, indicating a large reduction in extreme motion discontinuities. The modest InterBoundary reduction (3.6\%) is discussed further in Section~\ref{sec:analysis_ib}.
+
+\textbf{Per-task results.} Table~\ref{tab:per_task} shows per-task success rates. TAR improves or matches the baseline on 9 out of 10 tasks, with particularly large gains on fine-grained multi-object placement tasks (Tasks 2, 5, 7, 8, 10: +10\% to +16\%). Only Task 9 (put both moka pots on stove) shows a small decrease ($-8\%$).
+
+\input{tables/table3_per_task}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{fig2_per_task}
+    \caption{Per-task success rates on LIBERO-10 for the baseline ($\lambda_{\text{TAR}}=0$) and TAR ($\lambda_{\text{TAR}}=0.05$). Green/red annotations show absolute change. TAR improves or matches 9 of 10 tasks, with the largest gains on fine-grained multi-object placement tasks.}
+    \label{fig:per_task}
+\end{figure}
+
+\subsection{Ablation Study: Effect of $\lambda$}
+We train four models with $\lambda_{\text{TAR}} \in \{0, 0.01, 0.05, 0.10\}$ and evaluate each on LIBERO-10. Table~\ref{tab:ablation} and Fig.~\ref{fig:ablation} summarize the results.
+
+\input{tables/table4_ablation}
+
+Success rate increases monotonically from 86.4\% ($\lambda=0$) to 93.6\% ($\lambda=0.10$), a gain of 7.2 percentage points. No performance drop is observed, suggesting that the tested $\lambda$ range remains below the regularization threshold.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{fig3_ablation}
+    \caption{Success rate (left) and normalized smoothness metrics (right) as a function of $\lambda_{\text{TAR}}$. Both improve monotonically over the tested range.}
+    \label{fig:ablation}
+\end{figure}
+
+\subsection{Detailed Analysis}
+\label{sec:analysis_ib}
+
+\textbf{Non-monotonic InterBoundary behavior.} InterBoundary reaches its minimum at $\lambda=0.01$ (0.0421) and slightly increases for larger $\lambda$ (0.0451, 0.0460). This suggests a trade-off: stronger intra-chunk velocity constraints may cause the model to make corrective jumps at chunk boundaries to compensate. Despite this, success rate and other smoothness metrics continue to improve, indicating that overall trajectory quality is not limited by InterBoundary alone.
+
+\textbf{Regularization vs.\ smoothing effect.} The model trained with $\lambda=0.10$ achieves the highest training loss (${\sim}0.085$) but the highest success rate (93.6\%). This training loss / eval performance inversion is characteristic of regularization: the added constraint prevents overfitting to the training distribution, leading to better generalization despite higher training loss.
+
+\textbf{Success-conditioned smoothness.} Table~\ref{tab:success_fail_s1} shows S1 conditioned on episode outcome. As $\lambda$ increases, SuccessS1 and FailS1 both decrease, and the gap between them widens---successful episodes exhibit significantly smoother trajectories than failures, consistent with the hypothesis that action smoothness directly supports task completion.
+
+\input{tables/table5_success_fail_s1}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{fig4_per_task_s1}
+    \caption{Per-task intra-chunk smoothness (S1) across all four $\lambda_{\text{TAR}}$ values. Darker (green) cells indicate smoother trajectories. S1 decreases consistently with $\lambda_{\text{TAR}}$ for most tasks; the improvement is task-agnostic and does not depend on task difficulty.}
+    \label{fig:per_task_s1}
+\end{figure}
+
+\subsection{Broader Applicability}
+Although our experiments are conducted on BitVLA, TAR is applicable to any VLA model that (a) predicts action chunks of length $T \geq 2$ and (b) trains with a continuous regression objective. This covers a broad class of current high-performing systems.
+
+\textbf{OpenVLA-OFT}~\cite{kim2025openvlaoft} uses an identical action chunking and L1-regression setup to BitVLA, differing only in the LLM backbone precision. TAR can be integrated by adding a single line to its training loss computation.
+
+\textbf{$\pi_0$}~\cite{black2024pi0} generates action chunks via flow matching. Because the flow-matching loss also supervises the full $T$-step chunk trajectory, an analogous boundary-velocity term can be appended to the denoising loss; the structural argument for inter-chunk smoothness (Section~\ref{sec:method}) holds for any generative model that decouples consecutive chunks at prediction time.
+
+\textbf{Diffusion Policy}~\cite{chi2023diffusion} similarly denoises chunked action sequences; applying TAR to the denoising target encourages the diffusion model to assign higher probability to trajectories with small boundary velocities.
+
+The only cases where TAR would not apply are (i) models that execute single-step actions (no chunking) or (ii) models that share hidden state across chunk boundaries via an explicit recurrent connection, since in those cases inter-chunk discontinuity does not structurally arise.

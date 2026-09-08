@@ -1,0 +1,19 @@
+\begin{table}[t]
+\centering
+\caption{Qualitative comparison of smoothing strategies for action-chunking VLA models.}
+\label{tab:comparison}
+\small
+\begin{tabular}{lccc}
+\toprule
+ & \textbf{Temporal} & \textbf{Post-hoc} & \textbf{TAR} \\
+ & \textbf{Ensembling~\cite{zhao2023act}} & \textbf{Filtering} & \textbf{(ours)} \\
+\midrule
+Modifies training? & \texttimes & \texttimes & \checkmark \\
+Modifies inference? & \checkmark & \checkmark & \texttimes \\
+Extra inference cost? & High & Low & None \\
+Degrades reactivity? & Yes & Partial & No \\
+Requires architecture change? & No & No & No \\
+Shapes policy distribution? & No & No & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{table}

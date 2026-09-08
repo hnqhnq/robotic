@@ -1,0 +1,29 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Why Does TAR Improve Success Rate?}
+The success rate improvement from TAR can be attributed to two complementary mechanisms:
+
+\textbf{(1) Direct smoothing.} By penalizing high boundary velocities at training time, TAR produces action chunks whose first and last steps naturally blend with neighboring chunks. The resulting trajectories have 53\% lower peak jumps (MaxJump) and 24\% fewer gripper switching events, reducing mechanical disturbances that can destabilize fine-grained placements.
+
+\textbf{(2) Implicit regularization.} The TAR term introduces additional constraints on the predicted action space, analogous to weight decay in parameter space. The observation that $\lambda=0.10$ yields the highest training loss (${\sim}0.085$) yet the best evaluation performance (93.6\%) is strong evidence that TAR improves generalization beyond simply improving smoothness---the model learns a more conservative, generalizable policy.
+
+These two effects together explain why TAR benefits tasks requiring precise multi-object placement (Tasks 2, 5, 7, 8: +10--16\%), where both trajectory precision and generalization are critical.
+
+\subsection{InterBoundary: A Nuanced Story}
+Interestingly, InterBoundary is not minimized at the largest $\lambda$ but at $\lambda=0.01$ (Table~\ref{tab:ablation}). This suggests that when chunk-internal velocities are strongly constrained, the model may rely on a brief corrective jump at the chunk boundary to ``re-align'' with the target trajectory, slightly increasing IB. Future work could explore TAR formulations that directly penalize the predicted boundary discontinuity between consecutive chunks (requiring access to adjacent chunks during training) rather than intra-chunk boundary velocities.
+
+\subsection{Comparison with Alternative Smoothing Strategies}
+Table~\ref{tab:comparison} situates TAR against two common alternatives for reducing trajectory roughness in action-chunking policies.
+
+\input{tables/table6_comparison}
+
+Temporal ensembling~\cite{zhao2023act} overlaps multiple prediction windows and averages their outputs online. While effective, this strategy incurs constant re-inference overhead proportional to the window overlap factor and degrades reactivity to sudden scene changes because the averaged output mixes current and stale predictions. Post-hoc filtering (e.g., low-pass smoothing of executed actions) can reduce roughness at the cost of introducing lag between planned and executed motions, which can cause the robot to overshoot targets or respond too slowly to contact events. TAR avoids all inference-time overhead by moving the smoothness objective to training: the learned policy distribution itself is shaped to produce naturally smooth boundaries, so single-chunk non-overlapping execution remains optimal.
+
+\subsection{Limitations}
+\begin{itemize}
+    \item \textbf{Single benchmark.} Current experiments are limited to LIBERO-10. Validation on LIBERO-Spatial, -Object, Long, and real-robot settings is left for future work.
+    \item \textbf{Single model.} We evaluate TAR only on BitVLA. Generalization to other VLA architectures (e.g., OpenVLA-OFT~\cite{kim2025openvlaoft}, $\pi_0$~\cite{black2024pi0}) is an important open question.
+    \item \textbf{$\lambda$ upper bound.} The ablation shows no performance saturation at $\lambda=0.10$; the optimal $\lambda$ and the eventual performance ceiling remain unknown.
+    \item \textbf{No real-robot experiments.} Physical deployment is needed to verify that simulated smoothness improvements translate to hardware.
+\end{itemize}

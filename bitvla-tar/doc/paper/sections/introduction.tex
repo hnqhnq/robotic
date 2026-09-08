@@ -1,0 +1,27 @@
+\section{Introduction}
+\label{sec:introduction}
+
+Vision-Language-Action (VLA) models have emerged as a powerful paradigm for generalizable robot manipulation~\cite{kim2024openvla,kim2025openvlaoft,wang2025bitvla,black2024pi0,shukor2025smolvla}. By conditioning on visual observations and natural-language instructions, these models learn to predict robot actions end-to-end from large-scale demonstration data. A key design choice shared by recent high-performing VLA systems is \emph{action chunking}: rather than predicting a single action at each timestep, the model predicts a short sequence of $T$ future actions in one forward pass~\cite{zhao2023act,chi2023diffusion}. Action chunking reduces inference frequency, mitigates compounding errors, and enables short-horizon planning.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{fig1_overview}
+    \caption{Left: action trajectories across four consecutive chunks for the baseline (red) and a model trained with TAR (blue). Baseline transitions show abrupt velocity jumps; TAR produces smoother boundaries. Right: mean smoothness metrics (S1, IB, MaxJump) for three regularization strengths. Percentage labels show reduction relative to the baseline ($\lambda=0$).}
+    \label{fig:overview}
+\end{figure}
+
+Smooth, continuous motion is a fundamental requirement for reliable robot manipulation. Abrupt velocity changes excite joint and end-effector vibrations, increase contact forces during grasp and placement, and can destabilize objects being manipulated---effects that are especially pronounced in dexterous, multi-step tabletop tasks~\cite{flash1985coordination}. Classical robot motion planners address this explicitly through minimum-jerk trajectories~\cite{flash1985coordination} or velocity-boundary constraints at waypoints. Learning-based policies, however, typically optimize for task completion without any explicit smoothness objective, and the smoothness of the resulting motion depends entirely on the quality and density of the training demonstrations. As VLA models are deployed on increasingly capable hardware with tighter mechanical tolerances, the gap between the smooth motion assumed by the hardware and the jerky motion produced by learned policies becomes a practical barrier.
+
+Despite these benefits, action chunking introduces a subtle structural problem. Consecutive chunks are predicted independently, so the final action of chunk~$k$ and the first action of chunk~$k{+}1$ carry no explicit consistency guarantee. At execution time this manifests as a \emph{boundary discontinuity}: an abrupt velocity jump at every chunk transition. As illustrated in Fig.~\ref{fig:overview}, such jumps are far larger than the step-to-step variations within a chunk. In our analysis of a strong BitVLA~\cite{wang2025bitvla} baseline on LIBERO-10, the mean inter-chunk boundary jump is 0.0477---nearly $3\times$ the mean intra-chunk variation (0.0154). These discontinuities introduce mechanical stress, degrade manipulation precision, and can precipitate task failures, especially in fine-grained multi-step operations.
+
+Prior work mitigates boundary discontinuities at inference time---for example, via temporal ensembling~\cite{zhao2023act} or receding-horizon execution---but these strategies add latency and system complexity. We ask instead: can the training objective itself encourage smooth chunk boundaries? The answer, we find, is yes---and the fix is surprisingly simple.
+
+We propose \textbf{TAR} (Temporal Action Regularization), a lightweight training regularizer that penalizes large velocities at the first and last steps of each predicted action chunk. By encouraging every chunk to ``start slowly and end slowly,'' consecutive chunks naturally align at their boundaries without any change to the model architecture or the inference procedure. TAR requires only ${\sim}5$ lines of additional code and adds negligible computational overhead. Formally, TAR augments the standard L1 action regression loss with a boundary-velocity penalty weighted by a scalar $\lambda_{\text{TAR}}$; the complete formulation is given in Section~\ref{sec:method}.
+
+We apply TAR to BitVLA~\cite{wang2025bitvla}, a 1.58-bit quantized VLA (3\,B parameters, 1.4\,GB GPU memory), fine-tuned on the LIBERO-10 benchmark. Our key findings are:
+\begin{itemize}
+    \item \textbf{Large success-rate gain.} TAR raises task success rate from 86.4\% to 93.6\% (+7.2\,pp at $\lambda_{\text{TAR}}=0.10$), with improvements on 9 of 10 tasks.
+    \item \textbf{Comprehensive smoothness improvement.} Intra-chunk variation (S1) decreases by 36\%, peak jumps (MaxJump) by 53\%, and gripper-switching noise by 24\%.
+    \item \textbf{Monotonic ablation.} A 4-point ablation ($\lambda \in \{0, 0.01, 0.05, 0.10\}$) shows that both success rate and smoothness improve monotonically with $\lambda$, with no saturation in the tested range.
+    \item \textbf{Dual mechanism.} TAR acts simultaneously as a smoothing operator (direct) and a generalization regularizer (indirect), explaining why stronger regularization raises rather than lowers task performance.
+\end{itemize}

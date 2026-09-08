@@ -1,0 +1,30 @@
+# Local artifacts (not committed)
+data/
+checkpoints/
+runs/
+logs/
+wandb/
+
+# Large model / dataset files
+*.tfrecord
+*.tfrecord.*
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.pb
+*.zip
+*.data-*
+*.index
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
