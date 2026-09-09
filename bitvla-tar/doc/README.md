@@ -16,7 +16,8 @@
 | — | [TAR-NingqiuHe-MPU.pdf](TAR-NingqiuHe-MPU.pdf) | 论文 | 定稿 + 澳门理工作者信息（`doc/scripts/patch_author_on_pdf.py` 生成） |
 | — | [paper/](paper/) | 论文 | TAR 论文 LaTeX 源码（由定稿 PDF 反推重建，含 6 表 + 24 参考文献） |
 | — | [REPRODUCE.md](REPRODUCE.md) | 复现 | 从零复现的分阶段 checklist（含上服务器前 / 后对照表） |
-| — | [汇报说明-数据与模型缺失.md](汇报说明-数据与模型缺失.md) | 汇报 | 向导师说明云数据/checkpoint 丢失与当前恢复情况 |
+| — | [导师汇报-科研全流程.md](导师汇报-科研全流程.md) | 汇报 | **导师汇报主文档**：背景→目标→环境→数据→过程→结论→后续→投稿→缺失 |
+| — | [汇报说明-数据与模型缺失.md](汇报说明-数据与模型缺失.md) | 汇报 | 云数据/checkpoint 丢失与恢复情况（精简版） |
 
 ---
 
