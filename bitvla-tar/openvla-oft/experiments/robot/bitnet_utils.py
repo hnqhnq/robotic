@@ -1,6 +1,9 @@
 import torch
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 import numpy as np
+
+BITVLA_CODEBASE = str(Path(__file__).resolve().parent.parent.parent / "bitvla")
 from transformers import (
     AutoConfig,
     AutoImageProcessor,
@@ -61,8 +64,9 @@ def get_bitnet_vla(cfg: Any) -> torch.nn.Module:
         update_auto_map(cfg.pretrained_checkpoint)
         check_model_logic_mismatch(
             cfg.pretrained_checkpoint,
-            curr_files = {"bitvla_for_action_prediction.py":None,"configuration_bit_vla.py":None},
-            where_to_find_files_cur_codebase="./bitvla")
+            curr_files={"bitvla_for_action_prediction.py": None, "configuration_bit_vla.py": None},
+            where_to_find_files_cur_codebase=BITVLA_CODEBASE,
+        )
 
     # Load the model
     vla = AutoModelForVision2Seq.from_pretrained(

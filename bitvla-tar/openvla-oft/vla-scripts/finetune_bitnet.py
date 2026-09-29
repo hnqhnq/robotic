@@ -33,6 +33,9 @@ from experiments.robot.openvla_utils import (
     update_auto_map,
 )
 
+# openvla-oft/bitvla (train cwd is ft_script/, so avoid relative ./bitvla)
+BITVLA_CODEBASE = str(Path(__file__).resolve().parent.parent / "bitvla")
+
 from prismatic.models.action_heads import L1RegressionActionHead
 from prismatic.models.projectors import (
     ProprioProjector,
@@ -629,8 +632,9 @@ def finetune(cfg: FinetuneConfig) -> None:
         update_auto_map(cfg.vla_path)
         check_model_logic_mismatch(
             cfg.vla_path,
-            curr_files = {"bitvla_for_action_prediction.py":None,"configuration_bit_vla.py":None},
-            where_to_find_files_cur_codebase="./bitvla")
+            curr_files={"bitvla_for_action_prediction.py": None, "configuration_bit_vla.py": None},
+            where_to_find_files_cur_codebase=BITVLA_CODEBASE,
+        )
 
     # Wait for model files to be synced
     dist.barrier()

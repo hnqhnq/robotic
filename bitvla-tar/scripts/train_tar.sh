@@ -17,6 +17,7 @@ TAR_LAMBDA="${1:-0.05}"
 RUN_TAG="${2:-${RUN_TAG:-}}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export PYTHONPATH="${ROOT}/openvla-oft/bitvla:${PYTHONPATH:-}"
 FT_DIR="${ROOT}/openvla-oft/ft_script"
 
 VLA_PATH="${VLA_PATH:-${ROOT}/checkpoints/bitvla-bf16}"

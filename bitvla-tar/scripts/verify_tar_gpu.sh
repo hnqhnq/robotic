@@ -5,6 +5,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+export PYTHONPATH="${ROOT}/openvla-oft/bitvla:${PYTHONPATH:-}"
 
 if ! nvidia-smi >/dev/null 2>&1; then
   echo "Error: nvidia-smi not working. Run: bash scripts/setup_nvidia_driver.sh"
