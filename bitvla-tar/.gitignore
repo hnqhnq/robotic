@@ -5,6 +5,9 @@ runs/
 logs/
 wandb/
 
+# LIBERO sim (clone via setup_env_autodl.sh or manual install)
+openvla-oft/LIBERO/
+
 # Large model / dataset files
 *.tfrecord
 *.tfrecord.*
