@@ -5,9 +5,13 @@ Fine-tunes OpenVLA via LoRA.
 """
 
 import os
+import re
+import shutil
+import signal
 import time
 from collections import deque
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Type
 
@@ -99,10 +103,12 @@ class FinetuneConfig:
     grad_accumulation_steps: int = 1                 # Number of gradient accumulation steps
     max_steps: int = 200_000                         # Max number of training steps
     save_freq: int = 10_000                          # Checkpoint saving frequency in steps
+    keep_last_n_checkpoints: int = 0                 # If >0, delete older run--{step}_chkpt dirs (same run_id)
     save_latest_checkpoint_only: bool = False        # If True, saves only 1 checkpoint, overwriting latest checkpoint
                                                      #   (If False, saves all checkpoints)
     resume: bool = False                             # If True, resumes from checkpoint
     resume_step: Optional[int] = None                # (When `resume==True`) Step number that we are resuming from
+    auto_resume: bool = False                          # If True, load latest run_id--{step}_chkpt under run_root_dir
     image_aug: bool = True                           # If True, trains with image augmentations (HIGHLY RECOMMENDED)
     warmup_steps: int = 375                          # Number of warmup steps for the optimizer
     
@@ -156,6 +162,49 @@ def remove_ddp_in_checkpoint(state_dict) -> dict:
         else:
             new_state_dict[k] = v
     return new_state_dict
+
+
+def find_latest_training_checkpoint(run_root: Path, run_id: str) -> Optional[Tuple[int, Path]]:
+    """Return (step, checkpoint_dir) for the newest complete checkpoint of this run, if any."""
+    pat = re.compile(re.escape(run_id) + r"--(\d+)_chkpt$")
+    best: Optional[Tuple[int, Path]] = None
+    if not run_root.is_dir():
+        return None
+    for path in run_root.iterdir():
+        if not path.is_dir():
+            continue
+        match = pat.match(path.name)
+        if not match:
+            continue
+        step = int(match.group(1))
+        action_head = path / f"action_head--{step}_checkpoint.pt"
+        sharded = path / f"vla_fsdp_sharded--{step}_rank0.pt"
+        adapter = path / "lora_adapter" / "config.json"
+        if not action_head.is_file() and not sharded.is_file() and not adapter.is_file():
+            continue
+        if best is None or step > best[0]:
+            best = (step, path)
+    return best
+
+
+def prune_old_checkpoints(run_dir: Path, keep_last_n: int) -> None:
+    """Keep only the newest `keep_last_n` step checkpoints for this run_id."""
+    if keep_last_n <= 0:
+        return
+    parent = run_dir.parent
+    pat = re.compile(re.escape(run_dir.name) + r"--(\d+)_chkpt$")
+    entries: list[Tuple[int, Path]] = []
+    for path in parent.iterdir():
+        if not path.is_dir():
+            continue
+        match = pat.match(path.name)
+        if match:
+            entries.append((int(match.group(1)), path))
+    entries.sort(key=lambda item: item[0])
+    while len(entries) > keep_last_n:
+        step, old_dir = entries.pop(0)
+        shutil.rmtree(old_dir, ignore_errors=True)
+        print(f"[prune] Removed old checkpoint step {step}: {old_dir.name}")
 
 
 def get_run_id(cfg) -> str:
@@ -257,6 +306,39 @@ def get_vla_module(vla: nn.Module) -> nn.Module:
     except ImportError:
         pass
     return vla
+
+
+def save_vla_fsdp_sharded(vla: nn.Module, checkpoint_dir: Path, step: int, distributed_state) -> None:
+    """Per-rank FSDP shards (fast; no full-model NCCL all-gather)."""
+    from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+    from torch.distributed.fsdp import ShardedStateDictConfig, StateDictType
+
+    if not isinstance(vla, FSDP):
+        return
+    shard_cfg = ShardedStateDictConfig(offload_to_cpu=True)
+    with FSDP.state_dict_type(vla, StateDictType.SHARDED_STATE_DICT, shard_cfg):
+        sharded_state = vla.state_dict()
+    rank = distributed_state.process_index
+    out = checkpoint_dir / f"vla_fsdp_sharded--{step}_rank{rank}.pt"
+    torch.save(sharded_state, out)
+
+
+def load_vla_fsdp_sharded(vla: nn.Module, checkpoint_dir: Path, step: int, distributed_state) -> bool:
+    """Load FSDP sharded VLA weights saved by save_vla_fsdp_sharded."""
+    from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+    from torch.distributed.fsdp import ShardedStateDictConfig, StateDictType
+
+    if not isinstance(vla, FSDP):
+        return False
+    rank = distributed_state.process_index
+    path = checkpoint_dir / f"vla_fsdp_sharded--{step}_rank{rank}.pt"
+    if not path.is_file():
+        return False
+    shard_cfg = ShardedStateDictConfig(offload_to_cpu=True)
+    sharded_state = torch.load(path, weights_only=False, map_location="cpu")
+    with FSDP.state_dict_type(vla, StateDictType.SHARDED_STATE_DICT, shard_cfg):
+        vla.load_state_dict(sharded_state)
+    return True
 
 
 def save_vla_adapter(vla: nn.Module, adapter_dir: Path, distributed_state) -> None:
@@ -489,6 +571,8 @@ def save_training_checkpoint(
     action_head,
     train_dataset,
     distributed_state,
+    optimizer=None,
+    scheduler=None,
 ) -> None:
     """
     Save all training checkpoints including model components, LoRA adapter, and dataset statistics.
@@ -527,20 +611,44 @@ def save_training_checkpoint(
     # Wait for directories to be created
     dist.barrier()
 
-    # Save model components (main process only)
-    if distributed_state.is_main_process:
-        # Save processor and LoRA adapter
-        processor.save_pretrained(checkpoint_dir)
-        save_vla_adapter(vla, adapter_dir, distributed_state)
+    # FSDP sharded VLA (all ranks; avoids multi-GB all-gather timeouts)
+    if cfg.use_fsdp and not cfg.use_lora:
+        save_vla_fsdp_sharded(vla, checkpoint_dir, log_step, distributed_state)
 
-        # Save other components
+    # Save processor / heads / optimizer (main process only)
+    if distributed_state.is_main_process:
+        processor.save_pretrained(checkpoint_dir)
         if cfg.use_proprio and proprio_projector is not None:
             torch.save(proprio_projector.state_dict(), checkpoint_dir / f"proprio_projector--{checkpoint_name_suffix}")
 
-        if cfg.use_l1_regression  and action_head is not None:
+        if cfg.use_l1_regression and action_head is not None:
             torch.save(action_head.state_dict(), checkpoint_dir / f"action_head--{checkpoint_name_suffix}")
 
+        if scheduler is not None:
+            payload = {"step": log_step, "scheduler": scheduler.state_dict()}
+            # FSDP flat-param optimizer state is rank/layout sensitive; restore LR schedule only.
+            if optimizer is not None and not cfg.use_fsdp:
+                payload["optimizer"] = optimizer.state_dict()
+            torch.save(payload, checkpoint_dir / f"training_state--{checkpoint_name_suffix}")
+
+    dist.barrier()
+
+    # Full HF export for eval (slow; only at 10k-style saves or final step)
+    export_full_for_eval = (
+        log_step == cfg.max_steps
+        or (log_step >= 10000 and log_step % 10000 == 0)
+    )
+    if export_full_for_eval and distributed_state.is_main_process:
+        print(f"Exporting full VLA to lora_adapter for eval (step {log_step})...")
+    if export_full_for_eval:
+        save_vla_adapter(vla, adapter_dir, distributed_state)
+
     # Wait for model components to be saved
+    dist.barrier()
+
+    if distributed_state.is_main_process and cfg.keep_last_n_checkpoints > 0:
+        prune_old_checkpoints(run_dir, cfg.keep_last_n_checkpoints)
+
     dist.barrier()
 
     # Merge LoRA weights into base model and save resulting model checkpoint
@@ -572,7 +680,8 @@ def finetune(cfg: FinetuneConfig) -> None:
         None.
     """
     # Trim trailing forward slash ('/') in VLA path if it exists
-    cfg.vla_path = cfg.vla_path.rstrip("/")
+    base_vla_path = cfg.vla_path.rstrip("/")
+    cfg.vla_path = base_vla_path
     print(f"Fine-tuning BitVLA Model `{cfg.vla_path}` on `{cfg.dataset_name}`")
     if cfg.tar_lambda > 0.0:
         print(f"TAR enabled: tar_lambda={cfg.tar_lambda}")
@@ -581,7 +690,7 @@ def finetune(cfg: FinetuneConfig) -> None:
     if cfg.gradient_checkpointing:
         print("Gradient checkpointing enabled (use_reentrant=False)")
 
-    # Get experiment run ID
+    # Get experiment run ID (from base checkpoint path before auto-resume)
     run_id = get_run_id(cfg)
 
     # Create experiment run directory
@@ -590,6 +699,23 @@ def finetune(cfg: FinetuneConfig) -> None:
 
     # GPU setup
     distributed_state = PartialState()
+    if dist.is_initialized():
+        # FSDP full-state checkpoint gather can exceed the default 10-minute NCCL timeout.
+        try:
+            dist.distributed_c10d._get_default_group()._opts.timeout = timedelta(minutes=180)
+        except Exception:
+            pass
+
+    if cfg.auto_resume and not cfg.resume:
+        latest = find_latest_training_checkpoint(cfg.run_root_dir, run_id)
+        if latest is not None:
+            step, chkpt_dir = latest
+            if step < cfg.max_steps:
+                cfg.resume = True
+                cfg.resume_step = step
+                cfg.vla_path = str(chkpt_dir)
+                if distributed_state.is_main_process:
+                    print(f"Auto-resume: continuing from step {step} at {chkpt_dir}")
     device_id = distributed_state.local_process_index
     torch.cuda.set_device(device_id)
     torch.cuda.empty_cache()
@@ -616,37 +742,54 @@ def finetune(cfg: FinetuneConfig) -> None:
     # the `modeling_prismatic.py` file in this codebase; if so, we will copy
     # the file to the downloaded or locally stored checkpoint directory so
     # that the user's changes to the VLA class logic go into effect
-    if model_is_on_hf_hub(cfg.vla_path):
-        # Download model directly from Hugging Face Hub
-        vla_download_path = snapshot_download(repo_id=cfg.vla_path)
-        # Overwrite VLA path
-        cfg.vla_path = vla_download_path
+    checkpoint_dir: Optional[Path] = Path(cfg.vla_path) if cfg.resume else None
+    if cfg.resume:
+        if cfg.resume_step is None:
+            raise ValueError("resume=True requires resume_step")
+        if checkpoint_dir is None or not checkpoint_dir.is_dir():
+            raise FileNotFoundError(f"Resume checkpoint directory not found: {cfg.vla_path}")
+
+    load_hub_path = base_vla_path
+    if model_is_on_hf_hub(base_vla_path):
+        vla_download_path = snapshot_download(repo_id=base_vla_path)
+        load_hub_path = vla_download_path
+        if not cfg.resume:
+            cfg.vla_path = vla_download_path
     else:
-        # Register OpenVLA model to HF Auto Classes (not needed if the model is on HF Hub)
         AutoConfig.register("bitvla", Bitvla_Config)
         AutoImageProcessor.register(Bitvla_Config, SiglipImageProcessor)
         AutoProcessor.register(Bitvla_Config, LlavaProcessor)
         AutoModelForVision2Seq.register(Bitvla_Config, BitVLAForActionPrediction)
-    # Update config.json and sync model files
-    if distributed_state.is_main_process:
-        update_auto_map(cfg.vla_path)
-        check_model_logic_mismatch(
-            cfg.vla_path,
-            curr_files={"bitvla_for_action_prediction.py": None, "configuration_bit_vla.py": None},
-            where_to_find_files_cur_codebase=BITVLA_CODEBASE,
-        )
 
-    # Wait for model files to be synced
-    dist.barrier()
-
-    # Load processor and VLA
-    processor = AutoProcessor.from_pretrained(cfg.vla_path, trust_remote_code=True)
-
-    vla = AutoModelForVision2Seq.from_pretrained(
-        cfg.vla_path,
-        torch_dtype=torch.bfloat16,
-        trust_remote_code=True,
-    ).to(device_id)
+    if cfg.resume:
+        assert checkpoint_dir is not None
+        if distributed_state.is_main_process:
+            update_auto_map(str(checkpoint_dir))
+        dist.barrier()
+        processor = AutoProcessor.from_pretrained(checkpoint_dir, trust_remote_code=True)
+        sync_path = load_hub_path
+        vla = AutoModelForVision2Seq.from_pretrained(
+            sync_path,
+            torch_dtype=torch.bfloat16,
+            trust_remote_code=True,
+        ).to(device_id)
+    else:
+        sync_path = load_hub_path
+        if distributed_state.is_main_process:
+            update_auto_map(sync_path)
+            check_model_logic_mismatch(
+                sync_path,
+                curr_files={"bitvla_for_action_prediction.py": None, "configuration_bit_vla.py": None},
+                where_to_find_files_cur_codebase=BITVLA_CODEBASE,
+            )
+        dist.barrier()
+        processor = AutoProcessor.from_pretrained(sync_path, trust_remote_code=True)
+        vla = AutoModelForVision2Seq.from_pretrained(
+            sync_path,
+            torch_dtype=torch.bfloat16,
+            trust_remote_code=True,
+        ).to(device_id)
+        cfg.vla_path = sync_path
     
     vla.set_constant(
         image_token_idx = BITNET_DEFAULT_IMAGE_TOKEN_IDX,
@@ -704,6 +847,19 @@ def finetune(cfg: FinetuneConfig) -> None:
         vla = wrap_fsdp(vla, device_id)
     else:
         vla = wrap_ddp(vla, device_id, find_unused=True)
+
+    if cfg.resume and checkpoint_dir is not None and cfg.use_fsdp:
+        loaded = load_vla_fsdp_sharded(vla, checkpoint_dir, cfg.resume_step, distributed_state)
+        if distributed_state.is_main_process:
+            if loaded:
+                print(f"Loaded FSDP sharded VLA from step {cfg.resume_step}")
+            else:
+                adapter_dir = checkpoint_dir / "lora_adapter"
+                if not (adapter_dir / "config.json").exists():
+                    raise FileNotFoundError(
+                        f"No FSDP sharded or lora_adapter weights in {checkpoint_dir}"
+                    )
+                print("Warning: FSDP shards missing; VLA still at base weights (heads/optim restored)")
 
     # If applicable, instantiate proprio projector
     if cfg.use_proprio:
@@ -767,7 +923,29 @@ def finetune(cfg: FinetuneConfig) -> None:
         schedulers=[warmup_scheduler, cosine_scheduler],
         milestones=[cfg.warmup_steps],
     )
-    
+
+    if cfg.resume:
+        assert checkpoint_dir is not None
+        state_path = checkpoint_dir / f"training_state--{cfg.resume_step}_checkpoint.pt"
+        if state_path.is_file():
+            train_state = torch.load(state_path, weights_only=False, map_location="cpu")
+            scheduler.load_state_dict(train_state["scheduler"])
+            if "optimizer" in train_state and not cfg.use_fsdp:
+                optimizer.load_state_dict(train_state["optimizer"])
+            if distributed_state.is_main_process:
+                msg = f"Loaded scheduler state from {state_path}"
+                if "optimizer" in train_state and not cfg.use_fsdp:
+                    msg = f"Loaded optimizer/scheduler state from {state_path}"
+                elif cfg.use_fsdp:
+                    msg += " (FSDP: Adam momentum re-init; weights restored from shards)"
+                print(msg)
+        elif distributed_state.is_main_process:
+            print(
+                f"Warning: missing {state_path}; optimizer momentum reset, "
+                f"fast-forwarding LR scheduler to step {cfg.resume_step}"
+            )
+            for _ in range(cfg.resume_step):
+                scheduler.step()
 
     # Load Fine-tuning Dataset =>> note that we use an RLDS-formatted dataset following Open X-Embodiment by default.
     #   =>> If you want to use a non-RLDS dataset (e.g., a standard PyTorch Dataset) see the following commented block.
@@ -838,80 +1016,99 @@ def finetune(cfg: FinetuneConfig) -> None:
         "tar_loss": deque(maxlen=cfg.grad_accumulation_steps),
     }
 
-    # Start training
-    with tqdm.tqdm(total=cfg.max_steps, leave=False) as progress:
-        vla.train()
-        optimizer.zero_grad()
-        for batch_idx, batch in enumerate(dataloader):
-            # Compute training metrics and loss
-            loss, metrics = run_forward_pass(
-                vla=vla,
-                action_head=action_head,
-                proprio_projector=proprio_projector if cfg.use_proprio else None,
-                batch=batch,
-                action_tokenizer=action_tokenizer,
-                device_id=device_id,
-                use_l1_regression=cfg.use_l1_regression,
-                use_proprio=cfg.use_proprio,
-                tar_lambda=cfg.tar_lambda,
-            )
-            # Normalize loss to account for gradient accumulation
-            normalized_loss = loss / cfg.grad_accumulation_steps
+    def maybe_save_checkpoint(log_step: int, force: bool = False) -> None:
+        if log_step <= 0:
+            return
+        checkpoint_path = Path(str(run_dir) + f"--{log_step}_chkpt")
+        if not force and log_step % cfg.save_freq != 0:
+            return
+        if checkpoint_path.is_dir() and (checkpoint_path / f"training_state--{log_step}_checkpoint.pt").is_file():
+            return
+        save_training_checkpoint(
+            cfg=cfg,
+            run_dir=run_dir,
+            log_step=log_step,
+            vla=vla,
+            processor=processor,
+            proprio_projector=proprio_projector if cfg.use_proprio else None,
+            action_head=action_head if cfg.use_l1_regression else None,
+            train_dataset=train_dataset,
+            distributed_state=distributed_state,
+            optimizer=optimizer,
+            scheduler=scheduler,
+        )
 
-            # Backward pass
-            normalized_loss.backward()
+    interrupt_state = {"save": False}
 
-            # Store recent train metrics
-            for metric_name, value in metrics.items():
-                if metric_name in recent_metrics:
-                    recent_metrics[metric_name].append(value)
+    def _request_interrupt_checkpoint(signum, frame) -> None:
+        interrupt_state["save"] = True
 
-            # Compute gradient step index
-            gradient_step_idx = batch_idx // cfg.grad_accumulation_steps
+    signal.signal(signal.SIGTERM, _request_interrupt_checkpoint)
+    signal.signal(signal.SIGINT, _request_interrupt_checkpoint)
 
-            # Compute smoothened train metrics
-            smoothened_metrics = compute_smoothened_metrics(recent_metrics)
+    resume_from = cfg.resume_step if cfg.resume and cfg.resume_step is not None else 0
+    last_completed_step = resume_from
+    steps_since_resume = 0
 
-            # Push Metrics to W&B (every wandb_log_freq gradient steps)
-            log_step = gradient_step_idx if not cfg.resume else cfg.resume_step + gradient_step_idx
-            if distributed_state.is_main_process and log_step % cfg.wandb_log_freq == 0:
-                log_metrics_to_wandb(smoothened_metrics, "VLA Train", log_step, wandb)
-
-            if distributed_state.is_main_process and gradient_step_idx % cfg.wandb_log_freq == 0:
-                # Log the learning rate
-                # Make sure to do this AFTER any learning rate modifications (e.g., warmup/decay)
-                wandb.log(
-                    {
-                        "VLA Train/Learning Rate": scheduler.get_last_lr()[0],
-                    },
-                    step=log_step,
-                )
-
-            # Optimizer and LR scheduler step
-            if (batch_idx + 1) % cfg.grad_accumulation_steps == 0:
-                optimizer.step()
-                scheduler.step()
-                optimizer.zero_grad()
-                progress.update()
-
-            # Save model checkpoint: either keep latest checkpoint only or all checkpoints
-            if gradient_step_idx > 0 and log_step % cfg.save_freq == 0:
-                save_training_checkpoint(
-                    cfg=cfg,
-                    run_dir=run_dir,
-                    log_step=log_step,
+    try:
+        with tqdm.tqdm(total=cfg.max_steps, initial=resume_from, leave=False) as progress:
+            vla.train()
+            optimizer.zero_grad()
+            for batch_idx, batch in enumerate(dataloader):
+                loss, metrics = run_forward_pass(
                     vla=vla,
-                    processor=processor,
+                    action_head=action_head,
                     proprio_projector=proprio_projector if cfg.use_proprio else None,
-                    action_head=action_head if cfg.use_l1_regression else None,
-                    train_dataset=train_dataset,
-                    distributed_state=distributed_state,
+                    batch=batch,
+                    action_tokenizer=action_tokenizer,
+                    device_id=device_id,
+                    use_l1_regression=cfg.use_l1_regression,
+                    use_proprio=cfg.use_proprio,
+                    tar_lambda=cfg.tar_lambda,
                 )
+                normalized_loss = loss / cfg.grad_accumulation_steps
+                normalized_loss.backward()
 
-            # Stop training when max_steps is reached
-            if log_step == cfg.max_steps:
-                print(f"Max step {cfg.max_steps} reached! Stopping training...")
-                break
+                for metric_name, value in metrics.items():
+                    if metric_name in recent_metrics:
+                        recent_metrics[metric_name].append(value)
+
+                smoothened_metrics = compute_smoothened_metrics(recent_metrics)
+
+                if (batch_idx + 1) % cfg.grad_accumulation_steps == 0:
+                    steps_since_resume += 1
+                    log_step = resume_from + steps_since_resume if cfg.resume else steps_since_resume
+
+                    if distributed_state.is_main_process and log_step % cfg.wandb_log_freq == 0:
+                        log_metrics_to_wandb(smoothened_metrics, "VLA Train", log_step, wandb)
+                        wandb.log(
+                            {"VLA Train/Learning Rate": scheduler.get_last_lr()[0]},
+                            step=log_step,
+                        )
+
+                    optimizer.step()
+                    scheduler.step()
+                    optimizer.zero_grad()
+                    progress.update()
+                    last_completed_step = log_step
+
+                    maybe_save_checkpoint(log_step)
+                    if interrupt_state["save"]:
+                        if distributed_state.is_main_process:
+                            print(f"Interrupt received; saving checkpoint at step {log_step}...")
+                        maybe_save_checkpoint(log_step, force=True)
+                        interrupt_state["save"] = False
+                        raise KeyboardInterrupt
+
+                    if log_step == cfg.max_steps:
+                        print(f"Max step {cfg.max_steps} reached! Stopping training...")
+                        break
+    except KeyboardInterrupt:
+        if distributed_state.is_main_process:
+            print(f"Training interrupted at step {last_completed_step}")
+        if last_completed_step > 0:
+            maybe_save_checkpoint(last_completed_step, force=True)
+        raise
 
 
 if __name__ == "__main__":
