@@ -117,6 +117,8 @@ class GenerateConfig:
     task_suite_name: str = TaskSuite.LIBERO_SPATIAL  # Task suite
     num_steps_wait: int = 10                         # Number of steps to wait for objects to stabilize in sim
     num_trials_per_task: int = 50                    # Number of rollouts per task
+    task_ids: str = ""                               # Comma-separated task ids to evaluate (e.g. "0,1,2"); "" = all tasks.
+                                                     #   Used to shard one eval across several GPUs/processes.
     initial_states_path: str = "DEFAULT"             # "DEFAULT", or path to initial states JSON file
     env_img_res: int = 256                           # Resolution for environment images (not policy input resolution)
 
@@ -409,6 +411,7 @@ def run_task(
     task_episodes, task_successes = 0, 0
     for episode_idx in tqdm.tqdm(range(cfg.num_trials_per_task)):
         log_message(f"\nTask: {task_description}", log_file)
+        log_message(f"Task id: {task_id}", log_file)
 
         # Handle initial state
         if cfg.initial_states_path == "DEFAULT":
@@ -521,7 +524,14 @@ def eval_libero(cfg: GenerateConfig) -> float:
 
     # Start evaluation
     total_episodes, total_successes = 0, 0
-    for task_id in tqdm.tqdm(range(num_tasks)):
+    if cfg.task_ids.strip():
+        selected_task_ids = [int(x) for x in cfg.task_ids.split(",") if x.strip() != ""]
+        assert all(0 <= t < num_tasks for t in selected_task_ids), f"task_ids out of range [0, {num_tasks})"
+    else:
+        selected_task_ids = list(range(num_tasks))
+    log_message(f"Evaluating task ids: {selected_task_ids}", log_file)
+
+    for task_id in tqdm.tqdm(selected_task_ids):
         total_episodes, total_successes = run_task(
             cfg,
             task_suite,

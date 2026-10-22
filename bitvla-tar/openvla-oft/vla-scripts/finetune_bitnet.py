@@ -5,6 +5,7 @@ Fine-tunes OpenVLA via LoRA.
 """
 
 import os
+import random
 import re
 import shutil
 import signal
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple, Type
 
 import draccus
+import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -130,6 +132,13 @@ class FinetuneConfig:
 
     # TAR (Temporal Action Regularization)
     tar_lambda: float = 0.0                       # TAR loss weight (0.0 = baseline)
+
+    # Reproducibility. None = original behaviour (no seeding). When set, torch/numpy/random are seeded
+    # identically on all ranks (so newly-initialised heads match across ranks) and the RLDS pipeline gets a
+    # per-rank seed (seed * 100 + rank) so ranks still see different batches.
+    # NOTE: this reduces, but does not eliminate, run-to-run variance (multi-threaded tf.data, FSDP reductions,
+    # non-deterministic CUDA kernels are NOT forced deterministic).
+    seed: Optional[int] = None
 
     # Memory / distributed (v3/v4 reports: FSDP + gradient checkpointing on 4×24GB)
     gradient_checkpointing: bool = False          # Reduce activation memory during forward pass
@@ -720,6 +729,14 @@ def finetune(cfg: FinetuneConfig) -> None:
     torch.cuda.set_device(device_id)
     torch.cuda.empty_cache()
 
+    # Seed everything BEFORE any model / head initialisation (same seed on every rank on purpose)
+    if cfg.seed is not None:
+        random.seed(cfg.seed)
+        np.random.seed(cfg.seed)
+        torch.manual_seed(cfg.seed)
+        torch.cuda.manual_seed_all(cfg.seed)
+        print(f"[seed] global seed = {cfg.seed} (data seed on this rank = {cfg.seed * 100 + distributed_state.process_index})")
+
     # Initialize wandb logging
     if distributed_state.is_main_process:
         wandb.init(entity=cfg.wandb_entity, project=cfg.wandb_project, name=f"ft+{run_id}", mode = "offline" if not cfg.use_wandb else "online")
@@ -983,6 +1000,7 @@ def finetune(cfg: FinetuneConfig) -> None:
         resize_resolution=(224,224), # TODO: 这里的resize_resolution应该是多少？openvla用的224x224
         shuffle_buffer_size=cfg.shuffle_buffer_size,
         image_aug=cfg.image_aug,
+        seed=None if cfg.seed is None else cfg.seed * 100 + distributed_state.process_index,
     )
     
 

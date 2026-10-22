@@ -463,9 +463,12 @@ def make_interleaved_dataset(
     balance_weights: bool = False,
     traj_transform_threads: Optional[int] = None,
     traj_read_threads: Optional[int] = None,
+    seed: Optional[int] = None,
 ) -> dl.DLataset:
     """
     Creates an interleaved dataset from list of dataset configs (kwargs). Returns a dataset of batched frames.
+    `seed` (optional) seeds dataset interleaving and the frame shuffle buffer; None keeps the original
+    (non-deterministic) behaviour.
 
     Args:
         dataset_kwargs_list: list of kwargs, each element of which is passed to `make_dataset_from_rlds`.
@@ -558,7 +561,7 @@ def make_interleaved_dataset(
         datasets.append(dataset)
 
     # Interleave at the Frame Level
-    dataset: dl.DLataset = dl.DLataset.sample_from_datasets(datasets, sample_weights)
+    dataset: dl.DLataset = dl.DLataset.sample_from_datasets(datasets, sample_weights, seed=seed)
 
     # Validation =>> fix a single shuffle buffer of data and cache it in RAM; prevents gradual memory increase!
     if not train:
@@ -566,7 +569,7 @@ def make_interleaved_dataset(
 
     # Shuffle the Dataset
     #   =>> IMPORTANT :: Shuffle AFTER .cache(), or else memory will still leak!
-    dataset = dataset.shuffle(shuffle_buffer_size)
+    dataset = dataset.shuffle(shuffle_buffer_size, seed=seed)
 
     # Apply Frame Transforms
     overwatch.info("Applying frame transforms on dataset...")

@@ -5,6 +5,9 @@
 #
 # Example:
 #   bash scripts/eval_tar.sh runs/.../lora_adapter v4-tar001
+#
+# Optional env: TASK_IDS="0,1,2"  evaluate only these LIBERO-10 task ids (0-9). Used for sharding; see
+#   scripts/run_eval_sharded.sh. Shard logs get a "-t0_1_2" suffix; unset => all 10 tasks (original behaviour).
 set -euo pipefail
 
 CKPT="${1:?Usage: bash scripts/eval_tar.sh /path/to/checkpoint [label]}"
@@ -20,8 +23,16 @@ if [[ ! -e "${CKPT}" ]]; then
   exit 1
 fi
 
+TASK_IDS="${TASK_IDS:-}"
+NOTE="${LABEL}"
+TASK_ARG=()
+if [[ -n "${TASK_IDS}" ]]; then
+  NOTE="${LABEL}-t${TASK_IDS//,/_}"
+  TASK_ARG=(--task_ids "${TASK_IDS}")
+fi
+
 STAMP="$(date +%Y%m%d_%H%M%S)"
-LOG_FILE="${LOG_DIR}/eval_${LABEL}_${STAMP}.log"
+LOG_FILE="${LOG_DIR}/eval_${NOTE}_${STAMP}.log"
 
 echo "[eval_tar] Label: ${LABEL}"
 echo "[eval_tar] Checkpoint: ${CKPT}"
@@ -41,5 +52,6 @@ python experiments/robot/libero/run_libero_eval_bitnet.py \
   --use_wandb False \
   --local_log_dir "${LOG_DIR}" \
   --info_in_path "${LABEL}" \
-  --run_id_note "${LABEL}" \
+  --run_id_note "${NOTE}" \
+  ${TASK_ARG[@]+"${TASK_ARG[@]}"} \
   2>&1 | tee "${LOG_FILE}"

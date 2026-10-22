@@ -7,7 +7,7 @@ format to OpenVLA, IterableDataset shim.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Tuple, Type
+from typing import Any, Dict, Optional, Tuple, Type
 
 import numpy as np
 import torch
@@ -111,8 +111,18 @@ class RLDSDataset(IterableDataset):
         shuffle_buffer_size: int = 256_000,
         train: bool = True,
         image_aug: bool = False,
+        seed: Optional[int] = None,
     ) -> None:
-        """Lightweight wrapper around RLDS TFDS Pipeline for use with PyTorch/OpenVLA Data Loaders."""
+        """Lightweight wrapper around RLDS TFDS Pipeline for use with PyTorch/OpenVLA Data Loaders.
+
+        `seed` (optional): seeds the TF global RNG (file-read order, image-aug ops) and the interleave/shuffle ops.
+        None keeps the original non-deterministic behaviour. In multi-GPU training pass a *different* seed per rank,
+        otherwise every rank would see identical batches.
+        """
+        if seed is not None:
+            import tensorflow as tf
+
+            tf.random.set_seed(seed)
         self.data_root_dir, self.data_mix, self.batch_transform = data_root_dir, data_mix, batch_transform
 
         # Configure RLDS Dataset(s)
@@ -156,6 +166,8 @@ class RLDSDataset(IterableDataset):
             traj_read_threads=len(mixture_spec),
             train=train,
         )
+        if seed is not None:
+            rlds_config["seed"] = seed
 
         # If applicable, enable image augmentations
         if image_aug:

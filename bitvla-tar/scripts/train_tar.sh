@@ -11,7 +11,11 @@
 #   bash scripts/train_tar.sh 0.05 my-exp       # custom run tag
 #
 # Environment overrides: VLA_PATH, DATA_ROOT, RUN_ROOT, MAX_STEPS, NPROC, SAVE_FREQ,
-#   KEEP_LAST_N_CHECKPOINTS, AUTO_RESUME
+#   KEEP_LAST_N_CHECKPOINTS, AUTO_RESUME, SEED
+# SEED=<int>: seed torch/numpy/random + RLDS shuffle (per-rank derived); run tag gets suffix "-s<SEED>" so it never
+#   collides with / auto-resumes an existing unseeded run. Unset => original unseeded behaviour.
+#   e.g.  SEED=1 bash scripts/train_tar.sh 0.10     # -> run tag v4-tar01-s1
+#         SEED=1 bash scripts/train_tar.sh 0.0      # -> run tag tar-l0.0-s1 (lambda=0 baseline, same recipe)
 # AUTO_RESUME=1 (default): if a prior run_id checkpoint exists, continue from the latest step.
 # Disk-friendly defaults (~30G free on 50G data disk): save every 5000 steps, keep latest 1 ckpt
 #   (~12G peak under runs/). Step 10000 still exports lora_adapter for eval.
@@ -57,6 +61,13 @@ default_run_tag() {
 
 if [[ -z "${RUN_TAG}" ]]; then
   RUN_TAG="$(default_run_tag "${TAR_LAMBDA}")"
+  if [[ -n "${SEED:-}" ]]; then
+    RUN_TAG="${RUN_TAG}-s${SEED}"
+  fi
+fi
+SEED_ARG=()
+if [[ -n "${SEED:-}" ]]; then
+  SEED_ARG=(--seed "${SEED}")
 fi
 
 TAR_NOTE="$(tar_lambda_note "${TAR_LAMBDA}")"
@@ -79,6 +90,7 @@ mkdir -p "${RUN_ROOT}" "${ROOT}/logs"
 
 echo "[train_tar] tar_lambda=${TAR_LAMBDA} run_tag=${RUN_TAG} max_steps=${MAX_STEPS} nproc=${NPROC}"
 echo "[train_tar] save_freq=${SAVE_FREQ} keep_last_n_checkpoints=${KEEP_LAST_N_CHECKPOINTS} auto_resume=${AUTO_RESUME}"
+echo "[train_tar] seed=${SEED:-<unseeded>}"
 echo "[train_tar] run_id_note=${RUN_ID_NOTE}"
 echo "[train_tar] Log: ${LOG_FILE}"
 
@@ -114,4 +126,5 @@ torchrun --standalone --nnodes 1 --nproc-per-node "${NPROC}" ../vla-scripts/fine
   --gradient_checkpointing True \
   --use_fsdp True \
   --use_wandb False \
+  ${SEED_ARG[@]+"${SEED_ARG[@]}"} \
   2>&1 | tee "${LOG_FILE}"
