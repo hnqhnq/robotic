@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TAR — 会议海报（A0 横版 · 中文查阅版）</title>
+  <style>
+    @page {
+      size: 1189mm 841mm;
+      margin: 0;
+    }
+
+    :root {
+      --bg: #f4f6f9;
+      --ink: #1a2332;
+      --muted: #4a5568;
+      --accent: #0d4f8b;
+      --accent2: #1a7f5a;
+      --card: #ffffff;
+      --border: #d8dee9;
+      --highlight: #e8f2fc;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 1189mm;
+      height: 841mm;
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .poster {
+      width: 1189mm;
+      height: 841mm;
+      padding: 14mm 16mm 6mm;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 5mm;
+    }
+
+    .poster { font-size: 24pt; line-height: 1.4; }
+
+    header {
+      background: linear-gradient(135deg, var(--accent) 0%, #1565a8 55%, #0a3d6b 100%);
+      color: #fff;
+      border-radius: 6mm;
+      padding: 10mm 14mm 9mm;
+      box-shadow: 0 2mm 6mm rgba(13, 79, 139, 0.25);
+    }
+
+    header h1 {
+      font-size: 52pt;
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: 0.01em;
+      margin-bottom: 4mm;
+    }
+
+    header .subtitle-en {
+      font-size: 24pt;
+      opacity: 0.88;
+      margin-top: 2mm;
+      font-family: "Segoe UI", sans-serif;
+    }
+
+    header .subtitle {
+      font-size: 28pt;
+      font-weight: 400;
+      opacity: 0.95;
+      max-width: 98%;
+      margin-top: 3mm;
+    }
+
+    header .meta {
+      margin-top: 6mm;
+      font-size: 26pt;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6mm 14mm;
+      align-items: baseline;
+    }
+
+    header .meta strong { font-weight: 600; }
+
+    header .size-tag {
+      margin-left: auto;
+      background: rgba(255,255,255,0.18);
+      padding: 2mm 5mm;
+      border-radius: 3mm;
+      font-size: 24pt;
+    }
+
+    header .zh-note {
+      margin-top: 4mm;
+      font-size: 24pt;
+      opacity: 0.85;
+      border-top: 0.3mm solid rgba(255,255,255,0.25);
+      padding-top: 3mm;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto;
+      gap: 7mm;
+      min-height: 0;
+      height: 100%;
+      align-content: stretch;
+    }
+
+    .bottom-band {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7mm;
+      align-items: start;
+      align-self: end;
+    }
+
+    .bottom-band section {
+      height: auto;
+      align-self: start;
+    }
+
+    section {
+      background: var(--card);
+      border: 0.4mm solid var(--border);
+      border-radius: 5mm;
+      padding: 7mm 8mm;
+      display: flex;
+      flex-direction: column;
+      gap: 4mm;
+      overflow: hidden;
+    }
+
+    section.span-2 { grid-column: span 2; }
+
+    h2 {
+      font-size: 34pt;
+      color: var(--accent);
+      border-bottom: 0.6mm solid var(--accent);
+      padding-bottom: 2mm;
+      margin-bottom: 1mm;
+    }
+
+    h3 {
+      font-size: 26pt;
+      color: var(--accent2);
+      margin-top: 2mm;
+    }
+
+    p, li { color: var(--ink); }
+    .muted { color: var(--muted); font-size: 24pt; }
+
+    ul {
+      padding-left: 7mm;
+      display: flex;
+      flex-direction: column;
+      gap: 2mm;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3mm;
+    }
+
+    .pill {
+      background: var(--highlight);
+      color: var(--accent);
+      font-size: 24pt;
+      font-weight: 600;
+      padding: 2mm 4mm;
+      border-radius: 3mm;
+      border: 0.3mm solid #b8d4ef;
+    }
+
+    .formula {
+      background: #f8fafc;
+      border-left: 1.2mm solid var(--accent);
+      padding: 4mm 5mm;
+      font-size: 24pt;
+      font-family: "Cambria Math", "Times New Roman", "Microsoft YaHei", serif;
+      line-height: 1.5;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4mm;
+      margin-top: 2mm;
+    }
+
+    .stat {
+      text-align: center;
+      background: var(--highlight);
+      border-radius: 4mm;
+      padding: 4mm 3mm;
+    }
+
+    .stat .num {
+      font-size: 40pt;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1.1;
+    }
+
+    .stat .lbl {
+      font-size: 24pt;
+      color: var(--muted);
+      margin-top: 1mm;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 24pt;
+    }
+
+    th, td {
+      border: 0.3mm solid var(--border);
+      padding: 2.5mm 3mm;
+      text-align: center;
+    }
+
+    th {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) td { background: #f8fafc; }
+    tr.best td { background: #dff5eb; font-weight: 700; }
+
+    figure {
+      margin: 0;
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    figure img {
+      width: 100%;
+      flex: 1 1 auto;
+      min-height: 58mm;
+      max-height: 92mm;
+      height: auto;
+      object-fit: contain;
+      object-position: center bottom;
+      border-radius: 3mm;
+      border: 0.3mm solid var(--border);
+    }
+
+    figure.wide img {
+      min-height: 78mm;
+      max-height: 108mm;
+    }
+
+    figcaption {
+      font-size: 24pt;
+      color: var(--muted);
+      margin-top: 1.5mm;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .two-fig {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+      flex: 1 1 auto;
+      min-height: 72mm;
+      align-items: stretch;
+    }
+
+    .two-fig figure img {
+      min-height: 68mm;
+      max-height: 98mm;
+    }
+
+    .block-method figure.wide,
+    .block-results .two-fig {
+      margin-top: 1mm;
+    }
+
+    @media print {
+      html, body {
+        width: 1189mm;
+        height: 841mm;
+        overflow: hidden;
+      }
+      .poster {
+        page-break-after: avoid;
+        page-break-inside: avoid;
+      }
+    }
+
+    @media screen {
+      body {
+        transform-origin: top left;
+        transform: scale(0.35);
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <article class="poster">
+    <header>
+      <h1>TAR：面向视觉-语言-动作模型平滑动作分块的时序动作正则化</h1>
+      <p class="subtitle-en">TAR: Temporal Action Regularization for Smooth Action Chunking in Vision-Language-Action Models</p>
+      <p class="subtitle">训练期 chunk 边界速度正则 · 不改模型结构 · 推理零额外开销</p>
+      <div class="meta">
+        <span><strong>何宁秋</strong>、<strong>林子健（Chi Kin Lam）</strong>（通讯作者）</span>
+        <span>澳门理工大学 · 中国澳门</span>
+        <span>P2625633@mpu.edu.mo · cklamsta@mpu.edu.mo</span>
+        <span class="size-tag">海报尺寸：A0 横版（1189 × 841 mm）</span>
+      </div>
+      <p class="zh-note">中文查阅版（与 ../poster.html 内容同步）· 课程正式提交请用英文海报</p>
+    </header>
+
+    <main>
+      <section>
+        <h2>研究动机</h2>
+        <p>现代 VLA 每次前向预测未来 <strong>T = 8</strong> 步动作（动作分块 / action chunking）。在 <strong>LIBERO-10</strong> 上，官方 BitVLA 长程微调模型成功率 <strong>86.4%</strong>，但存在系统性的 <strong>chunk 边界不连续</strong>。</p>
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="num">3.1×</div>
+            <div class="lbl">块间跳变 / 块内平滑（IB ÷ S1）</div>
+          </div>
+          <div class="stat">
+            <div class="num">10×+</div>
+            <div class="lbl">峰值步速 / 平均（MaxJump ÷ S1）</div>
+          </div>
+          <div class="stat">
+            <div class="num">仅 L1</div>
+            <div class="lbl">标准损失不对齐相邻 chunk</div>
+          </div>
+        </div>
+        <p class="muted" style="margin-top:3mm;">目标：在部署阶段不用 temporal ensembling 的情况下，让独立预测的 chunk 之间平滑衔接。</p>
+      </section>
+
+      <section class="span-2 block-method">
+        <h2>方法 — 时序动作正则（TAR）</h2>
+        <p>设预测 chunk â ∈ ℝ<sup>B×T×D</sup>（T = 8，D = 7：6-DoF 末端增量 + 夹爪），在 L1 回归上增加：</p>
+        <div class="formula">
+          ℒ = ℒ<sub>L1</sub> + λ<sub>TAR</sub> · ℒ<sub>TAR</sub><br />
+          ℒ<sub>TAR</sub> = (1/BD) Σ<sub>b,d</sub> ( |â<sub>b,1,d</sub> − â<sub>b,0,d</sub>| + |â<sub>b,T−1,d</sub> − â<sub>b,T−2,d</sub>| )
+        </div>
+        <p><strong>直觉：</strong>每个 chunk <em>慢启动、慢收尾</em>，下一块更容易与上一块速度对齐。只惩罚边界步，chunk 内部仍可快速运动。</p>
+        <div class="pill-row">
+          <span class="pill">约 5 行代码</span>
+          <span class="pill">无新增参数</span>
+          <span class="pill">推理流程不变</span>
+          <span class="pill">BitVLA 3B · 1.58-bit · 约 1.4 GB 显存</span>
+        </div>
+        <figure class="wide" style="margin-top:3mm;">
+          <img src="../../../report/figures/fig1_tar_concept.png" alt="TAR 概念示意：chunk 边界与慢启动慢收尾" />
+          <figcaption>分块使边界处独立预测；TAR 在训练时惩罚边界处过大的速度。</figcaption>
+        </figure>
+      </section>
+
+      <section>
+        <h2>实验设置</h2>
+        <ul>
+          <li><strong>基座模型：</strong>BitVLA（bf16），<code>bitvla-bf16</code></li>
+          <li><strong>基准：</strong>LIBERO-10（<code>libero_10_no_noops</code>）</li>
+          <li><strong>训练：</strong>全参数微调，10,001 步，4× RTX 4090D（FSDP）</li>
+          <li><strong>评测：</strong>每 checkpoint 500 episodes；由日志动作算平滑度</li>
+          <li><strong>消融：</strong>λ<sub>TAR</sub> ∈ {0, 0.01, 0.05, 0.10}</li>
+        </ul>
+        <h3>指标</h3>
+        <p class="muted">成功率 ↑ · S1、MaxJump、InterBoundary、夹爪切换次数 ↓</p>
+      </section>
+
+      <section class="span-2 block-results">
+        <h2>主要结果（λ 消融）</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>λ<sub>TAR</sub></th>
+              <th>成功率</th>
+              <th>相对 baseline</th>
+              <th>S1 ↓</th>
+              <th>MaxJump ↓</th>
+              <th>InterBoundary ↓</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>0.00</td>
+              <td>86.4%</td>
+              <td>—</td>
+              <td>0.0154</td>
+              <td>0.1613</td>
+              <td>0.0477</td>
+            </tr>
+            <tr>
+              <td>0.01</td>
+              <td>89.0%</td>
+              <td>+2.6 pp</td>
+              <td>0.0111</td>
+              <td>0.0844</td>
+              <td>0.0421</td>
+            </tr>
+            <tr>
+              <td>0.05</td>
+              <td>90.8%</td>
+              <td>+4.4 pp</td>
+              <td>0.0104</td>
+              <td>0.0794</td>
+              <td>0.0451</td>
+            </tr>
+            <tr class="best">
+              <td>0.10</td>
+              <td>93.6%</td>
+              <td>+7.2 pp</td>
+              <td>0.0099</td>
+              <td>0.0761</td>
+              <td>0.0460</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="margin-top:3mm;">λ = 0.10 相对 baseline：<strong>S1 −36%</strong>、<strong>MaxJump −53%</strong>、<strong>夹爪切换 −24%</strong>。在 {0, 0.01, 0.05, 0.10} 上成功率随 λ 单调提升。</p>
+        <div class="two-fig">
+          <figure>
+            <img src="../../../report/figures/fig4_per_task.png" alt="分任务成功率对比" />
+            <figcaption>分任务：10 项中 9 项提升或持平；多物体放置类增益最大。</figcaption>
+          </figure>
+          <figure>
+            <img src="../../../report/figures/fig3_smoothness_demo_base_tar.png" alt="baseline 与 TAR 轨迹平滑度对比" />
+            <figcaption>典型轨迹：TAR（λ = 0.10）执行更平滑。</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <div class="bottom-band">
+        <section>
+          <h2>结论要点</h2>
+          <ul>
+            <li><strong>问题：</strong>块内预测尚可，但边界跳变主导运动不连续。</li>
+            <li><strong>方法：</strong>轻量边界速度正则，可插入任意 chunk 型 VLA 训练流程。</li>
+            <li><strong>证据：</strong>BitVLA + LIBERO-10 成功率 +7.2 pp；平滑度全面改善。</li>
+            <li><strong>洞见：</strong>较大 λ 可能带来隐式泛化正则（训练 loss 更高、评测更优）。</li>
+          </ul>
+        </section>
+        <section>
+          <h2>局限与后续</h2>
+          <ul class="muted">
+            <li>目前单一骨干与 benchmark；向 OpenVLA-OFT、π₀、其他 T 迁移。</li>
+            <li>统计复现与 checkpoint 公开（云端复现进行中）。</li>
+          </ul>
+          <p style="margin-top:2mm;"><strong>代码与报告：</strong><code>bitvla-tar/</code>（hnqhnq/robotic 仓库）</p>
+        </section>
+      </div>
+    </main>
+  </article>
+</body>
+</html>

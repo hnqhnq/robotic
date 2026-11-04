@@ -37,7 +37,7 @@ AUTHOR_LINE1: list[tuple[str, float, bool]] = [
     ("1", SUPERSCRIPT_SIZE, True),
     ("Macao Polytechnic University, Macao, China", FONT_SIZE, False),
 ]
-AUTHOR_LINE2 = "Email: hnq0824@gmail.com; cklamsta@mpu.edu.mo"
+AUTHOR_LINE2 = "Email: P2625633@mpu.edu.mo; cklamsta@mpu.edu.mo"
 AUTHOR_LINE3: list[tuple[str, float, bool]] = [
     ("*", SUPERSCRIPT_SIZE, True),
     ("Corresponding author (Supervisor)", FONT_SIZE, False),

@@ -28,7 +28,7 @@ paper/
 
 | 角色 | 英文 | 邮箱 |
 |------|------|------|
-| 第一作者 | Ningqiu He | hnq0824@gmail.com |
+| 第一作者 | Ningqiu He | P2625633@mpu.edu.mo |
 | 导师 / 通讯作者 | Chi Kin Lam | cklamsta@mpu.edu.mo |
 | 单位 | Macao Polytechnic University | — |
 

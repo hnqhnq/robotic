@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TAR — Conference Poster (A0 Landscape)</title>
+  <style>
+    @page {
+      size: 1189mm 841mm;
+      margin: 0;
+    }
+
+    :root {
+      --bg: #f4f6f9;
+      --ink: #1a2332;
+      --muted: #4a5568;
+      --accent: #0d4f8b;
+      --accent2: #1a7f5a;
+      --card: #ffffff;
+      --border: #d8dee9;
+      --highlight: #e8f2fc;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 1189mm;
+      height: 841mm;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .poster {
+      width: 1189mm;
+      height: 841mm;
+      padding: 14mm 16mm 6mm;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 5mm;
+    }
+
+    /* Typography: body ≥ 24 pt per assignment */
+    .poster { font-size: 24pt; line-height: 1.35; }
+
+    header {
+      background: linear-gradient(135deg, var(--accent) 0%, #1565a8 55%, #0a3d6b 100%);
+      color: #fff;
+      border-radius: 6mm;
+      padding: 10mm 14mm 9mm;
+      box-shadow: 0 2mm 6mm rgba(13, 79, 139, 0.25);
+    }
+
+    header h1 {
+      font-size: 58pt;
+      font-weight: 700;
+      line-height: 1.12;
+      letter-spacing: -0.02em;
+      margin-bottom: 4mm;
+    }
+
+    header .subtitle {
+      font-size: 30pt;
+      font-weight: 400;
+      opacity: 0.95;
+      max-width: 95%;
+    }
+
+    header .meta {
+      margin-top: 6mm;
+      font-size: 26pt;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6mm 14mm;
+      align-items: baseline;
+    }
+
+    header .meta strong { font-weight: 600; }
+
+    header .size-tag {
+      margin-left: auto;
+      background: rgba(255,255,255,0.18);
+      padding: 2mm 5mm;
+      border-radius: 3mm;
+      font-size: 24pt;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto;
+      gap: 7mm;
+      min-height: 0;
+      height: 100%;
+      align-content: stretch;
+    }
+
+    .bottom-band {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7mm;
+      align-items: start;
+      align-self: end;
+    }
+
+    .bottom-band section {
+      height: auto;
+      align-self: start;
+    }
+
+    section {
+      background: var(--card);
+      border: 0.4mm solid var(--border);
+      border-radius: 5mm;
+      padding: 7mm 8mm;
+      display: flex;
+      flex-direction: column;
+      gap: 4mm;
+      overflow: hidden;
+    }
+
+    section.span-2 { grid-column: span 2; }
+    section.span-row-2 { grid-row: span 2; }
+
+    h2 {
+      font-size: 34pt;
+      color: var(--accent);
+      border-bottom: 0.6mm solid var(--accent);
+      padding-bottom: 2mm;
+      margin-bottom: 1mm;
+    }
+
+    h3 {
+      font-size: 26pt;
+      color: var(--accent2);
+      margin-top: 2mm;
+    }
+
+    p, li { color: var(--ink); }
+    .muted { color: var(--muted); font-size: 24pt; }
+
+    ul {
+      padding-left: 7mm;
+      display: flex;
+      flex-direction: column;
+      gap: 2mm;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3mm;
+    }
+
+    .pill {
+      background: var(--highlight);
+      color: var(--accent);
+      font-size: 24pt;
+      font-weight: 600;
+      padding: 2mm 4mm;
+      border-radius: 3mm;
+      border: 0.3mm solid #b8d4ef;
+    }
+
+    .formula {
+      background: #f8fafc;
+      border-left: 1.2mm solid var(--accent);
+      padding: 4mm 5mm;
+      font-size: 24pt;
+      font-family: "Cambria Math", "Times New Roman", serif;
+      line-height: 1.5;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4mm;
+      margin-top: 2mm;
+    }
+
+    .stat {
+      text-align: center;
+      background: var(--highlight);
+      border-radius: 4mm;
+      padding: 4mm 3mm;
+    }
+
+    .stat .num {
+      font-size: 40pt;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1.1;
+    }
+
+    .stat .lbl {
+      font-size: 24pt;
+      color: var(--muted);
+      margin-top: 1mm;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 24pt;
+    }
+
+    th, td {
+      border: 0.3mm solid var(--border);
+      padding: 2.5mm 3mm;
+      text-align: center;
+    }
+
+    th {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) td { background: #f8fafc; }
+    tr.best td { background: #dff5eb; font-weight: 700; }
+
+    figure {
+      margin: 0;
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    figure img {
+      width: 100%;
+      flex: 1 1 auto;
+      min-height: 58mm;
+      max-height: 92mm;
+      height: auto;
+      object-fit: contain;
+      object-position: center bottom;
+      border-radius: 3mm;
+      border: 0.3mm solid var(--border);
+    }
+
+    figure.tall img {
+      min-height: 80mm;
+      max-height: 110mm;
+    }
+
+    figure.wide img {
+      min-height: 78mm;
+      max-height: 108mm;
+    }
+
+    figcaption {
+      font-size: 24pt;
+      color: var(--muted);
+      margin-top: 1.5mm;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .two-fig {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+      flex: 1 1 auto;
+      min-height: 72mm;
+      align-items: stretch;
+    }
+
+    .two-fig figure img {
+      min-height: 68mm;
+      max-height: 98mm;
+    }
+
+    .block-method figure.wide,
+    .block-results .two-fig {
+      margin-top: 1mm;
+    }
+
+    @media print {
+      html, body {
+        width: 1189mm;
+        height: 841mm;
+        overflow: hidden;
+      }
+      .poster {
+        page-break-after: avoid;
+        page-break-inside: avoid;
+      }
+    }
+
+    @media screen {
+      body {
+        transform-origin: top left;
+        transform: scale(0.35);
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <article class="poster">
+    <header>
+      <h1>TAR: Temporal Action Regularization for Smooth Action Chunking in Vision-Language-Action Models</h1>
+      <p class="subtitle">Training-time boundary-velocity regularization for chunk-based VLAs — no architecture change, zero inference overhead</p>
+      <div class="meta">
+        <span><strong>Ningqiu He</strong> and <strong>Chi Kin Lam</strong> (corresponding)</span>
+        <span>Macao Polytechnic University, Macao, China</span>
+        <span>P2625633@mpu.edu.mo · cklamsta@mpu.edu.mo</span>
+        <span class="size-tag">Poster size: A0 landscape (1189 × 841 mm)</span>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>Motivation</h2>
+        <p>Modern VLAs predict <strong>T = 8</strong> future actions per forward pass (action chunking). On <strong>LIBERO-10</strong>, the official BitVLA long-horizon fine-tune reaches <strong>86.4%</strong> success but shows systematic <strong>chunk-boundary discontinuities</strong>.</p>
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="num">3.1×</div>
+            <div class="lbl">Inter-chunk jump vs. intra-chunk smoothness (IB / S1)</div>
+          </div>
+          <div class="stat">
+            <div class="num">10×+</div>
+            <div class="lbl">Peak step velocity vs. average (MaxJump / S1)</div>
+          </div>
+          <div class="stat">
+            <div class="num">L1 only</div>
+            <div class="lbl">Standard loss does not align consecutive chunks</div>
+          </div>
+        </div>
+        <p class="muted" style="margin-top:3mm;">Goal: encourage smooth hand-offs between independently predicted chunks without temporal ensembling at deployment.</p>
+      </section>
+
+      <section class="span-2 block-method">
+        <h2>Method — Temporal Action Regularization (TAR)</h2>
+        <p>Given predicted chunk â ∈ ℝ<sup>B×T×D</sup> (T = 8, D = 7 end-effector dims + gripper), augment L1 regression:</p>
+        <div class="formula">
+          ℒ = ℒ<sub>L1</sub> + λ<sub>TAR</sub> · ℒ<sub>TAR</sub><br />
+          ℒ<sub>TAR</sub> = (1/BD) Σ<sub>b,d</sub> ( |â<sub>b,1,d</sub> − â<sub>b,0,d</sub>| + |â<sub>b,T−1,d</sub> − â<sub>b,T−2,d</sub>| )
+        </div>
+        <p><strong>Intuition:</strong> each chunk should <em>start slowly</em> and <em>end slowly</em>, so the next chunk meets a compatible velocity. Only boundary steps are penalized — interior fast motions remain expressible.</p>
+        <div class="pill-row">
+          <span class="pill">~5 lines of code</span>
+          <span class="pill">No new parameters</span>
+          <span class="pill">Same inference pipeline</span>
+          <span class="pill">BitVLA 3B · 1.58-bit · ~1.4 GB VRAM</span>
+        </div>
+        <figure class="wide" style="margin-top:3mm;">
+          <img src="../../report/figures/fig1_tar_concept.png" alt="TAR concept: chunk boundaries and slow start/end" />
+          <figcaption>Chunking creates independent predictions at boundaries; TAR penalizes high boundary velocities during training.</figcaption>
+        </figure>
+      </section>
+
+      <section>
+        <h2>Setup</h2>
+        <ul>
+          <li><strong>Base model:</strong> BitVLA (bf16) from <code>bitvla-bf16</code></li>
+          <li><strong>Benchmark:</strong> LIBERO-10 (<code>libero_10_no_noops</code>)</li>
+          <li><strong>Training:</strong> full fine-tune, 10,001 steps, 4× RTX 4090D (FSDP)</li>
+          <li><strong>Eval:</strong> 500 episodes per checkpoint; smoothness from logged actions</li>
+          <li><strong>Ablations:</strong> λ<sub>TAR</sub> ∈ {0, 0.01, 0.05, 0.10}</li>
+        </ul>
+        <h3>Metrics</h3>
+        <p class="muted">Success rate ↑ · S1, MaxJump, InterBoundary, gripper switches ↓</p>
+      </section>
+
+      <section class="span-2 block-results">
+        <h2>Main Results (λ ablation)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>λ<sub>TAR</sub></th>
+              <th>Success</th>
+              <th>Δ vs baseline</th>
+              <th>S1 ↓</th>
+              <th>MaxJump ↓</th>
+              <th>InterBoundary ↓</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>0.00</td>
+              <td>86.4%</td>
+              <td>—</td>
+              <td>0.0154</td>
+              <td>0.1613</td>
+              <td>0.0477</td>
+            </tr>
+            <tr>
+              <td>0.01</td>
+              <td>89.0%</td>
+              <td>+2.6 pp</td>
+              <td>0.0111</td>
+              <td>0.0844</td>
+              <td>0.0421</td>
+            </tr>
+            <tr>
+              <td>0.05</td>
+              <td>90.8%</td>
+              <td>+4.4 pp</td>
+              <td>0.0104</td>
+              <td>0.0794</td>
+              <td>0.0451</td>
+            </tr>
+            <tr class="best">
+              <td>0.10</td>
+              <td>93.6%</td>
+              <td>+7.2 pp</td>
+              <td>0.0099</td>
+              <td>0.0761</td>
+              <td>0.0460</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="margin-top:3mm;">Relative to baseline at λ = 0.10: <strong>S1 −36%</strong>, <strong>MaxJump −53%</strong>, <strong>gripper switches −24%</strong>. Success improves monotonically with λ in {0, 0.01, 0.05, 0.10}.</p>
+        <div class="two-fig">
+          <figure>
+            <img src="../../report/figures/fig4_per_task.png" alt="Per-task success gains" />
+            <figcaption>Per-task success: 9/10 tasks improve or tie; largest gains on multi-object placement.</figcaption>
+          </figure>
+          <figure>
+            <img src="../../report/figures/fig3_smoothness_demo_base_tar.png" alt="Trajectory smoothness baseline vs TAR" />
+            <figcaption>Representative trajectories: smoother execution with TAR (λ = 0.10).</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <div class="bottom-band">
+        <section>
+          <h2>Takeaways</h2>
+          <ul>
+            <li><strong>Problem:</strong> chunk boundaries dominate motion discontinuities despite good intra-chunk predictions.</li>
+            <li><strong>Fix:</strong> lightweight boundary-velocity regularizer; plug-in for any chunk-based VLA trainer.</li>
+            <li><strong>Evidence:</strong> +7.2 pp success on LIBERO-10 with BitVLA; broad smoothness gains.</li>
+            <li><strong>Insight:</strong> stronger λ can act as implicit generalization regularization (higher train loss, best eval).</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Limitations &amp; next steps</h2>
+          <ul class="muted">
+            <li>Single backbone / benchmark; transfer to OpenVLA-OFT, π₀, other chunk lengths T.</li>
+            <li>Statistical replication &amp; checkpoint release (ongoing cloud reproduce).</li>
+          </ul>
+          <p style="margin-top:2mm;"><strong>Code &amp; reports:</strong> <code>bitvla-tar/</code> (hnqhnq/robotic monorepo)</p>
+        </section>
+      </div>
+    </main>
+  </article>
+</body>
+</html>
