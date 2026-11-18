@@ -1,0 +1,27 @@
+# model label open_loop exec_mode task_ids          (track-1 evals, run by scripts/run_eval_queue.sh)
+# E3: re-eval with raw npz, horizon 8 (must reproduce 88.4% / 83.6%)
+tar  e3-tar-h8   8 chunk 0,2,4,6,8
+tar  e3-tar-h8   8 chunk 1,3,5,7,9
+base e3-base-h8  8 chunk 0,2,4,6,8
+base e3-base-h8  8 chunk 1,3,5,7,9
+# E4: execution-horizon sweep
+tar  e4-tar-h4   4 chunk 0,2,4,6,8
+tar  e4-tar-h4   4 chunk 1,3,5,7,9
+base e4-base-h4  4 chunk 0,2,4,6,8
+base e4-base-h4  4 chunk 1,3,5,7,9
+tar  e4-tar-h2   2 chunk 0,2,4,6,8
+tar  e4-tar-h2   2 chunk 1,3,5,7,9
+base e4-base-h2  2 chunk 0,2,4,6,8
+base e4-base-h2  2 chunk 1,3,5,7,9
+# E5: inference-side smoothing. Overlap blending (execute 4, blend 4), full 500 episodes
+tar  e5-tar-blend4  4 blend 0,2,4,6,8
+tar  e5-tar-blend4  4 blend 1,3,5,7,9
+base e5-base-blend4 4 blend 0,2,4,6,8
+base e5-base-blend4 4 blend 1,3,5,7,9
+# E5: temporal ensembling screen on report tasks #5/#7/#9 (ids 4/6/8), 150 episodes per model
+tar  e5-tar-te   1 te 4
+tar  e5-tar-te   1 te 6
+tar  e5-tar-te   1 te 8
+base e5-base-te  1 te 4
+base e5-base-te  1 te 6
+base e5-base-te  1 te 8

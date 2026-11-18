@@ -11,7 +11,7 @@
 #   bash scripts/train_tar.sh 0.05 my-exp       # custom run tag
 #
 # Environment overrides: VLA_PATH, DATA_ROOT, RUN_ROOT, MAX_STEPS, NPROC, SAVE_FREQ,
-#   KEEP_LAST_N_CHECKPOINTS, AUTO_RESUME, SEED
+#   KEEP_LAST_N_CHECKPOINTS, AUTO_RESUME, SEED, GRAD_ACCUM (default 8), FSDP_CPU_OFFLOAD (True for 1-GPU runs)
 # SEED=<int>: seed torch/numpy/random + RLDS shuffle (per-rank derived); run tag gets suffix "-s<SEED>" so it never
 #   collides with / auto-resumes an existing unseeded run. Unset => original unseeded behaviour.
 #   e.g.  SEED=1 bash scripts/train_tar.sh 0.10     # -> run tag v4-tar01-s1
@@ -36,6 +36,8 @@ NPROC="${NPROC:-4}"
 SAVE_FREQ="${SAVE_FREQ:-5000}"
 KEEP_LAST_N_CHECKPOINTS="${KEEP_LAST_N_CHECKPOINTS:-1}"
 AUTO_RESUME="${AUTO_RESUME:-1}"
+GRAD_ACCUM="${GRAD_ACCUM:-8}"
+FSDP_CPU_OFFLOAD="${FSDP_CPU_OFFLOAD:-False}"
 if [[ "${AUTO_RESUME}" == "0" || "${AUTO_RESUME}" == "false" || "${AUTO_RESUME}" == "False" ]]; then
   AUTO_RESUME_ARG="False"
 else
@@ -112,7 +114,7 @@ torchrun --standalone --nnodes 1 --nproc-per-node "${NPROC}" ../vla-scripts/fine
   --num_images_in_input 2 \
   --use_proprio True \
   --batch_size 2 \
-  --grad_accumulation_steps 8 \
+  --grad_accumulation_steps "${GRAD_ACCUM}" \
   --learning_rate 4e-4 \
   --lr_vit 8e-5 \
   --max_steps "${MAX_STEPS}" \
@@ -125,6 +127,7 @@ torchrun --standalone --nnodes 1 --nproc-per-node "${NPROC}" ../vla-scripts/fine
   --tar_lambda "${TAR_LAMBDA}" \
   --gradient_checkpointing True \
   --use_fsdp True \
+  --fsdp_cpu_offload "${FSDP_CPU_OFFLOAD}" \
   --use_wandb False \
   ${SEED_ARG[@]+"${SEED_ARG[@]}"} \
   2>&1 | tee "${LOG_FILE}"

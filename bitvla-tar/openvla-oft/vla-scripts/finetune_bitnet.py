@@ -143,6 +143,7 @@ class FinetuneConfig:
     # Memory / distributed (v3/v4 reports: FSDP + gradient checkpointing on 4×24GB)
     gradient_checkpointing: bool = False          # Reduce activation memory during forward pass
     use_fsdp: bool = False                        # FSDP instead of DDP for full-parameter finetune
+    fsdp_cpu_offload: bool = False                # FSDP: keep params/grads/optimizer state in CPU RAM (1-GPU runs)
     # fmt: on
 
     lr_vit: float = 0.0
@@ -284,8 +285,9 @@ def wrap_ddp(module: nn.Module, device_id: int, find_unused: bool = False) -> DD
     return DDP(module, device_ids=[device_id], find_unused_parameters=find_unused, gradient_as_bucket_view=True)
 
 
-def wrap_fsdp(module: nn.Module, device_id: int) -> nn.Module:
+def wrap_fsdp(module: nn.Module, device_id: int, cpu_offload: bool = False) -> nn.Module:
     """Wrap a module with FullyShardedDataParallel (FULL_SHARD, bf16)."""
+    from torch.distributed.fsdp import CPUOffload
     from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
     from torch.distributed.fsdp import MixedPrecision, ShardingStrategy
 
@@ -300,6 +302,7 @@ def wrap_fsdp(module: nn.Module, device_id: int) -> nn.Module:
         mixed_precision=mp_policy,
         sharding_strategy=ShardingStrategy.FULL_SHARD,
         use_orig_params=True,
+        cpu_offload=CPUOffload(offload_params=True) if cpu_offload else None,
     )
 
 
@@ -861,7 +864,7 @@ def finetune(cfg: FinetuneConfig) -> None:
 
     # Wrap VLA with FSDP or DDP
     if cfg.use_fsdp:
-        vla = wrap_fsdp(vla, device_id)
+        vla = wrap_fsdp(vla, device_id, cpu_offload=cfg.fsdp_cpu_offload)
     else:
         vla = wrap_ddp(vla, device_id, find_unused=True)
 

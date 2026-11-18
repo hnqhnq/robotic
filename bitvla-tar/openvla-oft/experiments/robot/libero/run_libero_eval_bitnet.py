@@ -4,6 +4,7 @@ run_libero_eval.py
 Evaluates a trained policy in a LIBERO simulation benchmark task suite.
 """
 
+import dataclasses
 import json
 import logging
 import os
@@ -105,6 +106,11 @@ class GenerateConfig:
 
     center_crop: bool = True                         # Center crop? (if trained w/ random crop image aug)
     num_open_loop_steps: int = 8                     # Number of actions to execute open-loop before requerying policy
+    execution_mode: str = "chunk"                    # "chunk": execute first num_open_loop_steps of each chunk;
+                                                     # "te": ACT temporal ensembling (query every step);
+                                                     # "blend": linear blend of new chunk head with previous chunk's
+                                                     #          unexecuted tail over the overlap (ChunkFlow-style)
+    te_decay: float = 0.01                           # (te) weights exp(-te_decay * i), i = 0 for the oldest prediction
 
     unnorm_key: Union[str, Path] = ""                # Action un-normalization key
 
@@ -137,6 +143,7 @@ class GenerateConfig:
 
     save_smoothness_json: bool = True                # Save action smoothness metrics to JSON
     smoothness_json_path: str = ""                   # Optional output path (default: local_log_dir/smoothness_<run_id>.json)
+    save_raw_npz: bool = True                        # Save per-episode raw chunks / executed actions / EEF pose (npz)
     # fmt: on
 
 
@@ -151,6 +158,9 @@ def validate_config(cfg: GenerateConfig) -> None:
 
     # Validate task suite
     assert cfg.task_suite_name in [suite.value for suite in TaskSuite], f"Invalid task suite: {cfg.task_suite_name}"
+
+    assert cfg.execution_mode in ("chunk", "te", "blend"), f"Invalid execution_mode: {cfg.execution_mode}"
+    assert 1 <= cfg.num_open_loop_steps <= NUM_ACTIONS_CHUNK, "num_open_loop_steps must be in [1, NUM_ACTIONS_CHUNK]"
 
 
 def initialize_model(cfg: GenerateConfig):
@@ -315,17 +325,19 @@ def run_episode(
     else:
         obs = env.get_observation()
 
-    # Initialize action queue
-    if cfg.num_open_loop_steps != NUM_ACTIONS_CHUNK:
-        print(f"WARNING: cfg.num_open_loop_steps ({cfg.num_open_loop_steps}) does not match the NUM_ACTIONS_CHUNK "
-               "{NUM_ACTIONS_CHUNK} constant defined in prismatic.vla.constants! For best performance (in terms of "
-               "both speed and success rate), we recommend executing the full action chunk.")
-    action_queue = deque(maxlen=cfg.num_open_loop_steps)
+    # The policy is always queried for the full chunk; execution_mode decides what is executed.
+    full_chunk_cfg = dataclasses.replace(cfg, num_open_loop_steps=NUM_ACTIONS_CHUNK)
+    exec_steps = 1 if cfg.execution_mode == "te" else cfg.num_open_loop_steps
+    action_queue = deque()
+    prev_chunk = None                  # (blend) last full chunk
+    te_buffer = []                     # (te) list of (query_step, full_chunk), oldest first
 
     # Setup
     t = 0
     replay_images = []
     max_steps = TASK_MAX_STEPS[cfg.task_suite_name]
+    raw = {"chunks": [], "query_steps": [], "exec_actions": [], "env_actions": [],
+           "eef_pos": [], "eef_quat": [], "gripper_qpos": []}
 
     # Run episode
     success = False
@@ -340,31 +352,59 @@ def run_episode(
                 continue
 
             # Prepare observation
+            raw["eef_pos"].append(np.asarray(obs["robot0_eef_pos"], dtype=np.float32))
+            raw["eef_quat"].append(np.asarray(obs["robot0_eef_quat"], dtype=np.float32))
+            raw["gripper_qpos"].append(np.asarray(obs["robot0_gripper_qpos"], dtype=np.float32))
             observation, img = prepare_observation(obs, resize_size)
             replay_images.append(img)
 
             # If action queue is empty, requery model
             if len(action_queue) == 0:
-                # Query model to get action
-                actions = get_action(
-                    cfg,
-                    model,
-                    observation,
-                    task_description,
-                    processor=processor,
-                    action_head=action_head,
-                    proprio_projector=proprio_projector,
-                    noisy_action_projector=noisy_action_projector,
-                    use_film=cfg.use_film,
+                chunk = np.asarray(
+                    get_action(
+                        full_chunk_cfg,
+                        model,
+                        observation,
+                        task_description,
+                        processor=processor,
+                        action_head=action_head,
+                        proprio_projector=proprio_projector,
+                        noisy_action_projector=noisy_action_projector,
+                        use_film=cfg.use_film,
+                    ),
+                    dtype=np.float64,
                 )
+                raw["chunks"].append(chunk)
+                raw["query_steps"].append(t - cfg.num_steps_wait)
                 if smoothness_tracker is not None:
-                    smoothness_tracker.add_chunk(np.asarray(actions))
-                action_queue.extend(actions)
+                    smoothness_tracker.add_chunk(chunk)
+
+                if cfg.execution_mode == "chunk":
+                    segment = chunk[:exec_steps]
+                elif cfg.execution_mode == "blend":
+                    segment = chunk[:exec_steps].copy()
+                    if prev_chunk is not None:
+                        overlap = min(exec_steps, NUM_ACTIONS_CHUNK - exec_steps)
+                        for j in range(overlap):
+                            w = 0.0 if overlap == 1 else j / (overlap - 1)
+                            segment[j] = w * chunk[j] + (1.0 - w) * prev_chunk[exec_steps + j]
+                    prev_chunk = chunk
+                else:  # te
+                    now = t - cfg.num_steps_wait
+                    te_buffer.append((now, chunk))
+                    te_buffer = [(q, c) for q, c in te_buffer if now - q < NUM_ACTIONS_CHUNK]
+                    preds = np.stack([c[now - q] for q, c in te_buffer])
+                    weights = np.exp(-cfg.te_decay * np.arange(len(preds)))
+                    segment = (weights[:, None] * preds).sum(axis=0, keepdims=True) / weights.sum()
+                action_queue.extend(segment)
+
             # Get action from queue
             action = action_queue.popleft()
+            raw["exec_actions"].append(np.asarray(action, dtype=np.float64))
 
             # Process action
             action = process_action(action, cfg.model_family)
+            raw["env_actions"].append(np.asarray(action, dtype=np.float64))
 
             # Execute action in environment
             obs, reward, done, info = env.step(action.tolist())
@@ -379,7 +419,25 @@ def run_episode(
     if smoothness_tracker is not None:
         smoothness_tracker.end_episode(success)
 
-    return success, replay_images
+    return success, replay_images, raw
+
+
+def save_raw_episode(path: Path, raw: dict, success: bool, task_id: int, episode_idx: int, cfg: GenerateConfig) -> None:
+    """Save one episode's raw predicted chunks, executed actions and EEF trajectory."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    arrays = {}
+    for k, v in raw.items():
+        arrays[k] = np.stack(v) if len(v) > 0 else np.zeros((0,))
+    np.savez_compressed(
+        path,
+        **arrays,
+        success=np.bool_(success),
+        task_id=np.int64(task_id),
+        episode_idx=np.int64(episode_idx),
+        num_open_loop_steps=np.int64(cfg.num_open_loop_steps),
+        execution_mode=np.str_(cfg.execution_mode),
+        te_decay=np.float64(cfg.te_decay),
+    )
 
 
 def run_task(
@@ -433,7 +491,7 @@ def run_task(
         log_message(f"Starting episode {task_episodes + 1}...", log_file)
 
         # Run episode
-        success, replay_images = run_episode(
+        success, replay_images, raw = run_episode(
             cfg,
             env,
             task_description,
@@ -447,6 +505,12 @@ def run_task(
             log_file,
             smoothness_tracker,
         )
+
+        if cfg.save_raw_npz:
+            save_raw_episode(
+                Path(cfg.local_log_dir) / "raw" / f"task{task_id}_ep{episode_idx:02d}.npz",
+                raw, success, task_id, episode_idx, cfg,
+            )
 
         # Update counters
         task_episodes += 1
