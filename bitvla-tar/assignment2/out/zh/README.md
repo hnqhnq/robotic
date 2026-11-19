@@ -38,4 +38,4 @@ python3 export_poster_pdf.py
 
 ## 内容来源
 
-`bitvla-tar/report/`（导师汇报、v4 消融、方法说明）与 `doc/paper/`。
+`bitvla-tar/report/`（进度文档、v4 消融、方法说明）与 `doc/paper/`。

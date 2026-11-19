@@ -40,7 +40,7 @@ If you print from Chrome/Edge yourself: paper **A0**, orientation **Landscape**,
 
 ## Source material
 
-Content drawn from `bitvla-tar/report/` (导师汇报, v4 ablation, method note) and `doc/paper/`.
+Content drawn from `bitvla-tar/report/` (progress notes, v4 ablation, method note) and `doc/paper/`.
 
 ## Chinese reference (查阅)
 
