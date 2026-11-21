@@ -1,0 +1,219 @@
+{
+  "per_label": {
+    "e3-base-h8": {
+      "summary": {
+        "n_episodes": 500,
+        "n_fail": 82,
+        "tags": {
+          "timeout": 38,
+          "timeout_stall": 44
+        },
+        "tag_frac_of_fail": {
+          "timeout": 0.4634146341463415,
+          "timeout_stall": 0.5365853658536586
+        },
+        "mean_stall_on_fail": 0.35239212007504694
+      }
+    },
+    "e3-tar-h8": {
+      "summary": {
+        "n_episodes": 500,
+        "n_fail": 58,
+        "tags": {
+          "timeout_stall": 40,
+          "timeout": 18
+        },
+        "tag_frac_of_fail": {
+          "timeout_stall": 0.6896551724137931,
+          "timeout": 0.3103448275862069
+        },
+        "mean_stall_on_fail": 0.4673076923076923
+      }
+    },
+    "e4-base-h4": {
+      "summary": {
+        "n_episodes": 500,
+        "n_fail": 125,
+        "tags": {
+          "timeout": 54,
+          "timeout_stall": 71
+        },
+        "tag_frac_of_fail": {
+          "timeout": 0.432,
+          "timeout_stall": 0.568
+        },
+        "mean_stall_on_fail": 0.41921538461538466
+      }
+    },
+    "e4-tar-h4": {
+      "summary": {
+        "n_episodes": 500,
+        "n_fail": 99,
+        "tags": {
+          "timeout_stall": 84,
+          "timeout": 15
+        },
+        "tag_frac_of_fail": {
+          "timeout_stall": 0.8484848484848485,
+          "timeout": 0.15151515151515152
+        },
+        "mean_stall_on_fail": 0.5715229215229216
+      }
+    },
+    "e4-base-h2": {
+      "summary": {
+        "n_episodes": 500,
+        "n_fail": 186,
+        "tags": {
+          "timeout": 49,
+          "timeout_stall": 137
+        },
+        "tag_frac_of_fail": {
+          "timeout": 0.26344086021505375,
+          "timeout_stall": 0.7365591397849462
+        },
+        "mean_stall_on_fail": 0.49923490488006617
+      }
+    },
+    "e4-tar-h2": {
+      "summary": {
+        "n_episodes": 500,
+        "n_fail": 155,
+        "tags": {
+          "timeout_stall": 137,
+          "timeout": 18
+        },
+        "tag_frac_of_fail": {
+          "timeout_stall": 0.8838709677419355,
+          "timeout": 0.11612903225806452
+        },
+        "mean_stall_on_fail": 0.6134367245657569
+      }
+    }
+  },
+  "pairs": [
+    {
+      "base": "e3-base-h8",
+      "tar": "e3-tar-h8",
+      "paired_n": 500,
+      "outcome": {
+        "both_ok": 377,
+        "base_only": 41,
+        "tar_only": 65,
+        "both_fail": 17,
+        "fail_timeout|timeout_stall": 3,
+        "fail_timeout_stall|timeout_stall": 11,
+        "fail_timeout|timeout": 2,
+        "fail_timeout_stall|timeout": 1
+      },
+      "base_fail_summary": {
+        "n_episodes": 500,
+        "n_fail": 82,
+        "tags": {
+          "timeout": 38,
+          "timeout_stall": 44
+        },
+        "tag_frac_of_fail": {
+          "timeout": 0.4634146341463415,
+          "timeout_stall": 0.5365853658536586
+        },
+        "mean_stall_on_fail": 0.35239212007504694
+      },
+      "tar_fail_summary": {
+        "n_episodes": 500,
+        "n_fail": 58,
+        "tags": {
+          "timeout_stall": 40,
+          "timeout": 18
+        },
+        "tag_frac_of_fail": {
+          "timeout_stall": 0.6896551724137931,
+          "timeout": 0.3103448275862069
+        },
+        "mean_stall_on_fail": 0.4673076923076923
+      }
+    },
+    {
+      "base": "e4-base-h4",
+      "tar": "e4-tar-h4",
+      "paired_n": 500,
+      "outcome": {
+        "both_ok": 310,
+        "base_only": 65,
+        "tar_only": 91,
+        "both_fail": 34,
+        "fail_timeout_stall|timeout": 4,
+        "fail_timeout_stall|timeout_stall": 17,
+        "fail_timeout|timeout_stall": 10,
+        "fail_timeout|timeout": 3
+      },
+      "base_fail_summary": {
+        "n_episodes": 500,
+        "n_fail": 125,
+        "tags": {
+          "timeout": 54,
+          "timeout_stall": 71
+        },
+        "tag_frac_of_fail": {
+          "timeout": 0.432,
+          "timeout_stall": 0.568
+        },
+        "mean_stall_on_fail": 0.41921538461538466
+      },
+      "tar_fail_summary": {
+        "n_episodes": 500,
+        "n_fail": 99,
+        "tags": {
+          "timeout_stall": 84,
+          "timeout": 15
+        },
+        "tag_frac_of_fail": {
+          "timeout_stall": 0.8484848484848485,
+          "timeout": 0.15151515151515152
+        },
+        "mean_stall_on_fail": 0.5715229215229216
+      }
+    },
+    {
+      "base": "e4-base-h2",
+      "tar": "e4-tar-h2",
+      "paired_n": 500,
+      "outcome": {
+        "tar_only": 97,
+        "both_ok": 248,
+        "base_only": 66,
+        "both_fail": 89,
+        "fail_timeout_stall|timeout": 6,
+        "fail_timeout|timeout": 3,
+        "fail_timeout_stall|timeout_stall": 58,
+        "fail_timeout|timeout_stall": 22
+      },
+      "base_fail_summary": {
+        "n_episodes": 500,
+        "n_fail": 186,
+        "tags": {
+          "timeout": 49,
+          "timeout_stall": 137
+        },
+        "tag_frac_of_fail": {
+          "timeout": 0.26344086021505375,
+          "timeout_stall": 0.7365591397849462
+        },
+        "mean_stall_on_fail": 0.49923490488006617
+      },
+      "tar_fail_summary": {
+        "n_episodes": 500,
+        "n_fail": 155,
+        "tags": {
+          "timeout_stall": 137,
+          "timeout": 18
+        },
+        "tag_frac_of_fail": {
+          "timeout_stall": 0.8838709677419355,
+          "timeout": 0.11612903225806452
+        },
+        "mean_stall_on_fail": 0.6134367245657569
+      }
+    }
+  ]
+}
