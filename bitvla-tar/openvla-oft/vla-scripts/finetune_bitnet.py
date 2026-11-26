@@ -740,9 +740,15 @@ def finetune(cfg: FinetuneConfig) -> None:
         torch.cuda.manual_seed_all(cfg.seed)
         print(f"[seed] global seed = {cfg.seed} (data seed on this rank = {cfg.seed * 100 + distributed_state.process_index})")
 
-    # Initialize wandb logging
-    if distributed_state.is_main_process:
-        wandb.init(entity=cfg.wandb_entity, project=cfg.wandb_project, name=f"ft+{run_id}", mode = "offline" if not cfg.use_wandb else "online")
+    # Initialize wandb logging (offline by default via WANDB_MODE; see scripts/train_tar.sh)
+    if distributed_state.is_main_process and cfg.use_wandb:
+        wandb_mode = os.environ.get("WANDB_MODE", "offline")
+        wandb.init(
+            entity=cfg.wandb_entity,
+            project=cfg.wandb_project,
+            name=f"ft+{run_id}",
+            mode=wandb_mode,
+        )
 
     # Print detected constants
     print(
@@ -1100,7 +1106,11 @@ def finetune(cfg: FinetuneConfig) -> None:
                     steps_since_resume += 1
                     log_step = resume_from + steps_since_resume if cfg.resume else steps_since_resume
 
-                    if distributed_state.is_main_process and log_step % cfg.wandb_log_freq == 0:
+                    if (
+                        distributed_state.is_main_process
+                        and cfg.use_wandb
+                        and log_step % cfg.wandb_log_freq == 0
+                    ):
                         log_metrics_to_wandb(smoothened_metrics, "VLA Train", log_step, wandb)
                         wandb.log(
                             {"VLA Train/Learning Rate": scheduler.get_last_lr()[0]},

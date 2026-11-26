@@ -12,6 +12,9 @@
 #
 # Environment overrides: VLA_PATH, DATA_ROOT, RUN_ROOT, MAX_STEPS, NPROC, SAVE_FREQ,
 #   KEEP_LAST_N_CHECKPOINTS, AUTO_RESUME, SEED, GRAD_ACCUM (default 8), FSDP_CPU_OFFLOAD (True for 1-GPU runs)
+#   USE_WANDB (default True): step loss / L1 / tar_loss → W&B every 10 steps (for paper curves like v4tar01_train_curve.csv)
+#   WANDB_MODE (default offline): offline logs under openvla-oft/ft_script/wandb/
+#   USE_WANDB=0 for short smoke runs only
 # SEED=<int>: seed torch/numpy/random + RLDS shuffle (per-rank derived); run tag gets suffix "-s<SEED>" so it never
 #   collides with / auto-resumes an existing unseeded run. Unset => original unseeded behaviour.
 #   e.g.  SEED=1 bash scripts/train_tar.sh 0.10     # -> run tag v4-tar01-s1
@@ -38,6 +41,12 @@ KEEP_LAST_N_CHECKPOINTS="${KEEP_LAST_N_CHECKPOINTS:-1}"
 AUTO_RESUME="${AUTO_RESUME:-1}"
 GRAD_ACCUM="${GRAD_ACCUM:-8}"
 FSDP_CPU_OFFLOAD="${FSDP_CPU_OFFLOAD:-False}"
+USE_WANDB="${USE_WANDB:-True}"
+case "${USE_WANDB}" in
+  0|false|False|no|NO) USE_WANDB_ARG="False" ;;
+  *) USE_WANDB_ARG="True" ;;
+esac
+export WANDB_MODE="${WANDB_MODE:-offline}"
 if [[ "${AUTO_RESUME}" == "0" || "${AUTO_RESUME}" == "false" || "${AUTO_RESUME}" == "False" ]]; then
   AUTO_RESUME_ARG="False"
 else
@@ -93,6 +102,7 @@ mkdir -p "${RUN_ROOT}" "${ROOT}/logs"
 echo "[train_tar] tar_lambda=${TAR_LAMBDA} run_tag=${RUN_TAG} max_steps=${MAX_STEPS} nproc=${NPROC}"
 echo "[train_tar] save_freq=${SAVE_FREQ} keep_last_n_checkpoints=${KEEP_LAST_N_CHECKPOINTS} auto_resume=${AUTO_RESUME}"
 echo "[train_tar] seed=${SEED:-<unseeded>}"
+echo "[train_tar] use_wandb=${USE_WANDB_ARG} wandb_mode=${WANDB_MODE}"
 echo "[train_tar] run_id_note=${RUN_ID_NOTE}"
 echo "[train_tar] Log: ${LOG_FILE}"
 
@@ -128,6 +138,6 @@ torchrun --standalone --nnodes 1 --nproc-per-node "${NPROC}" ../vla-scripts/fine
   --gradient_checkpointing True \
   --use_fsdp True \
   --fsdp_cpu_offload "${FSDP_CPU_OFFLOAD}" \
-  --use_wandb False \
+  --use_wandb "${USE_WANDB_ARG}" \
   ${SEED_ARG[@]+"${SEED_ARG[@]}"} \
   2>&1 | tee "${LOG_FILE}"

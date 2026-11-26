@@ -11,7 +11,7 @@ LOG="$ROOT/logs/stage_a0_driver.out"
   conda activate bitvla
   export PYTHONPATH="${ROOT}/openvla-oft/bitvla:${PYTHONPATH:-}"
   AUTO_RESUME=0 MAX_STEPS=100 SAVE_FREQ=99999 KEEP_LAST_N_CHECKPOINTS=0 \
-    NPROC=4 SEED=1 RUN_TAG=a0-smoke-s1 FSDP_CPU_OFFLOAD=False \
+    NPROC=4 SEED=1 RUN_TAG=a0-smoke-s1 FSDP_CPU_OFFLOAD=False USE_WANDB=0 \
     bash scripts/train_tar.sh 0.10
   echo "[A0] $(date -Iseconds) exit=$?"
 } >>"$LOG" 2>&1
